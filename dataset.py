@@ -6,11 +6,43 @@ from torch.utils.data import Dataset, DataLoader
 class BlastDataset(Dataset):
     """ Dataset for blast wave simulation from BlastFoam simulator """
 
-    def __init__(self, root_dir, max_timesteps=None, padding_value=0.0):
+    def __init__(self, root_dir, max_timesteps=None, padding_value=0.0, normalize=True):
         self.data_dir = root_dir
         self.simulations = [os.path.join(root_dir, d) for d in os.listdir(root_dir) if os.path.isdir(os.path.join(root_dir, d))]
         self.max_timesteps = max_timesteps
         self.padding_value = padding_value
+        self.normalize = normalize
+
+        if normalize:
+            self.pressure_mean, self.pressure_std = self._compute_normalization()
+
+
+    def _compute_normalization(self):
+        """
+        Compute the normalization parameters for the dataset.
+        """
+        mean = 0.0
+        var = 0.0
+        n = 0
+        for sim_dir in self.simulations:
+            timestep_files = sorted(
+                [os.path.join(sim_dir, f) for f in os.listdir(sim_dir) if f.endswith('.json')],
+                key=lambda x: int(x.split('_')[-1].split('.')[0])
+            )
+            files_processed = 0
+            for file in timestep_files:
+                files_processed += 1
+                print(f'processing {files_processed} of {len(self.simulations)} files')
+                with open(file, 'r') as f:
+                    data = json.load(f)
+                    pressures = torch.tensor(data["pressure"], dtype=torch.float32)
+                    n += pressures.numel()
+                    delta = pressures.mean().item() - mean
+                    mean += delta * (pressures.numel() / n)
+                    var += pressures.var().item() * (pressures.numel() / n)
+
+            std = torch.sqrt(torch.tensor(var))
+        return mean, std
 
     def __len__(self):
         return len(self.simulations)
@@ -26,9 +58,12 @@ class BlastDataset(Dataset):
         for file in timestep_files:
             with open(file, 'r') as f:
                 data = json.load(f)
+                pressure = torch.tensor(data["pressure"], dtype=torch.float32)
+                if self.normalize:
+                    pressure = (pressure - self.pressure_mean) / self.pressure_std
                 sequence_data.append({
                     "time": data["time"],
-                    "pressure": torch.tensor(data["pressure"], dtype=torch.float32),
+                    "pressure": pressure,
                     "wall_locations": torch.tensor([list(w.values()) for w in data["wall_locations"]], dtype=torch.float32),
                     "charge_data": self._process_charge_data(data["charge_data"])
                 })
