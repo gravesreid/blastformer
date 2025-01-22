@@ -2,6 +2,7 @@ import os
 import json
 import torch
 from torch.utils.data import Dataset, DataLoader
+from multiprocessing import Pool, cpu_count
 
 class BlastDataset(Dataset):
     """ Dataset for blast wave simulation from BlastFoam simulator """
@@ -24,15 +25,15 @@ class BlastDataset(Dataset):
         mean = 0.0
         var = 0.0
         n = 0
+        simulations_processed = 0
         for sim_dir in self.simulations:
             timestep_files = sorted(
                 [os.path.join(sim_dir, f) for f in os.listdir(sim_dir) if f.endswith('.json')],
                 key=lambda x: int(x.split('_')[-1].split('.')[0])
             )
-            files_processed = 0
+            simulations_processed += 1
+            print(f'processing {simulations_processed} of {len(self.simulations)} simulations')
             for file in timestep_files:
-                files_processed += 1
-                print(f'processing {files_processed} of {len(self.simulations)} files')
                 with open(file, 'r') as f:
                     data = json.load(f)
                     pressures = torch.tensor(data["pressure"], dtype=torch.float32)
@@ -119,5 +120,5 @@ class BlastDataset(Dataset):
 # Example Usage
 root_dir = "/home/reid/projects/blast_waves/dataset_parallel_processed"
 dataset = BlastDataset(root_dir, max_timesteps=1069, padding_value=0.0)
-dataloader = DataLoader(dataset, batch_size=4, shuffle=True)
+dataloader = DataLoader(dataset, batch_size=32, shuffle=True)
 
