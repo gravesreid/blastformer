@@ -7,16 +7,20 @@ from multiprocessing import Pool, cpu_count
 class BlastDataset(Dataset):
     """ Dataset for blast wave simulation from BlastFoam simulator """
 
-    def __init__(self, root_dir, max_timesteps=None, padding_value=0.0, normalize=True):
+    def __init__(self, root_dir, normalization_file = "normalization_val.json", max_timesteps=None, padding_value=0.0, normalize=True):
         self.data_dir = root_dir
         self.simulations = [os.path.join(root_dir, d) for d in os.listdir(root_dir) if os.path.isdir(os.path.join(root_dir, d))]
         self.max_timesteps = max_timesteps
         self.padding_value = padding_value
         self.normalize = normalize
+        self.normalization_file = normalization_file
 
-        if normalize:
-            self.pressure_mean, self.pressure_std = self._compute_normalization()
-
+        # Load or compute normalization parameters
+        if os.path.exists(self.normalization_file):
+            self.mean, self.std = self._load_normalization()
+        else:
+            self.mean, self.std = self._compute_normalization()
+            self._save_normalization(self.mean, self.std)
 
     def _compute_normalization(self):
         """
@@ -32,7 +36,7 @@ class BlastDataset(Dataset):
                 key=lambda x: int(x.split('_')[-1].split('.')[0])
             )
             simulations_processed += 1
-            print(f'processing {simulations_processed} of {len(self.simulations)} simulations')
+            print(f'Processing {simulations_processed} of {len(self.simulations)} simulations...')
             for file in timestep_files:
                 with open(file, 'r') as f:
                     data = json.load(f)
@@ -42,8 +46,26 @@ class BlastDataset(Dataset):
                     mean += delta * (pressures.numel() / n)
                     var += pressures.var().item() * (pressures.numel() / n)
 
-            std = torch.sqrt(torch.tensor(var))
+        std = torch.sqrt(torch.tensor(var))
         return mean, std
+
+    def _save_normalization(self, mean, std):
+        """
+        Save normalization parameters to a file.
+        """
+        std = std.item()
+        with open(self.normalization_file, 'w') as f:
+            json.dump({"mean": mean, "std": std}, f)
+        print(f"Saved normalization parameters to {self.normalization_file}")
+
+    def _load_normalization(self):
+        """
+        Load normalization parameters from a file.
+        """
+        with open(self.normalization_file, 'r') as f:
+            params = json.load(f)
+        print(f"Loaded normalization parameters from {self.normalization_file}")
+        return params["mean"], params["std"]
 
     def __len__(self):
         return len(self.simulations)
@@ -61,7 +83,7 @@ class BlastDataset(Dataset):
                 data = json.load(f)
                 pressure = torch.tensor(data["pressure"], dtype=torch.float32)
                 if self.normalize:
-                    pressure = (pressure - self.pressure_mean) / self.pressure_std
+                    pressure = (pressure - self.mean) / self.std
                 sequence_data.append({
                     "time": data["time"],
                     "pressure": pressure,
@@ -117,8 +139,5 @@ class BlastDataset(Dataset):
                 sequence_data = sequence_data[:self.max_timesteps]
         return sequence_data
 
-# Example Usage
-root_dir = "/home/reid/projects/blast_waves/dataset_parallel_processed"
-dataset = BlastDataset(root_dir, max_timesteps=1069, padding_value=0.0)
-dataloader = DataLoader(dataset, batch_size=32, shuffle=True)
+
 
