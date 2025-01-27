@@ -87,7 +87,7 @@ device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 input_dim = 6594  # Match your dataset (pressures + charge_data + wall_locations)
 hidden_dim = 256
 output_dim = 6561  # Number of pressures predicted
-seq_len = 100  # Context timesteps
+seq_len = 1  # Context timesteps
 num_layers = 4
 
 model = PressurePredictor(input_dim, hidden_dim, num_layers, output_dim, seq_len).to(device)

@@ -1,9 +1,9 @@
 import os
 import json
 
-simulation_data_path = "/home/reid/projects/blast_waves/dataset_parallel"
+simulation_data_path = "/home/reid/projects/blast_waves/dataset_parallel_large"
 
-output_dir = "/home/reid/projects/blast_waves/dataset_parallel_processed"
+output_dir = "/home/reid/projects/blast_waves/dataset_parallel_processed_large"
 
 if not os.path.exists(output_dir):
     os.makedirs(output_dir)
@@ -88,10 +88,11 @@ def parse_charge_data(filepath):
                 charge_data["radius1"] = float(line.split()[1].strip(";")) 
     return charge_data
 
-def make_samples(probe_data, wall_locations, charge_data):
+def make_samples(probe_data, probe_locations, wall_locations, charge_data):
     for time, pressure_data in probe_data['time'].items():
         yield {
             "time" : time,
+            #"probe_locations" : probe_locations,
             "pressure" : pressure_data,
             "wall_locations" : wall_locations,
             "charge_data" : charge_data,
@@ -116,7 +117,7 @@ def main():
         run_output_dir = os.path.join(output_dir, run)
         if not os.path.exists(run_output_dir):
             os.makedirs(run_output_dir)
-        for i, sample in enumerate(make_samples(probe_data, wall_locs, charge_locs)):
+        for i, sample in enumerate(make_samples(probe_data, probe_locations, wall_locs, charge_locs)):
             output_path = os.path.join(run_output_dir, f"sample_{i}.json")
             with open(output_path, 'w') as f:
                 json.dump(sample, f, indent=4)

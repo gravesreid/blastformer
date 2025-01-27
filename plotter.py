@@ -27,7 +27,7 @@ def plot_simulation_sample(data_sample):
     fig, ax = plt.subplots(figsize=(8, 8))
     pressure_grid = pressures[0].reshape(grid_size, grid_size).T  # Transpose the grid for correct orientation
     im = ax.imshow(
-        pressure_grid, extent=(-4, 4, -4, 4), origin="lower", cmap="jet", alpha=0.8
+        pressure_grid, extent=(-4.9, 4.9, -4.9, 4.9), origin="lower", cmap="jet", alpha=0.8
     )
     cbar = fig.colorbar(im, ax=ax, label="Pressure")
 
@@ -61,6 +61,12 @@ def plot_simulation_sample(data_sample):
         plt.pause(0.0001)  # Pause to visualize each timestep
     
     plt.show()
+
+dataset = BlastDataset(
+    root_dir="/home/reid/projects/blast_waves/dataset_parallel_processed_large"
+)
+
+dataloader = DataLoader(dataset, batch_size=1, shuffle=False, num_workers=0)
 
 # Example Usage
 for batch in dataloader:

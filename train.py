@@ -5,26 +5,30 @@ from blastformer_transformer import PressurePredictor
 from dataset import *
 import matplotlib.pyplot as plt
 from torch.optim.lr_scheduler import ReduceLROnPlateau
+from tqdm import tqdm
+
+batch_size = 256
 
 # Example Usage
-root_dir = "/home/reid/projects/blast_waves/dataset_parallel_processed"
+root_dir = "/home/reid/projects/blast_waves/dataset_parallel_processed_large"
 dataset = BlastDataset(root_dir, max_timesteps=1069, padding_value=0.0)
-dataloader = DataLoader(dataset, batch_size=24, shuffle=True)
+dataloader = DataLoader(dataset, batch_size=batch_size, shuffle=True)
 
 # Hyperparameters
-input_dim = dataset[0]["pressures"].shape[1] + dataset[0]["charge_data"].shape[1] + 18  # Combine pressure and charge features
+input_dim = 33
 hidden_dim = 256
-output_dim = dataset[0]["pressures"].shape[1]   # Predict pressures
-seq_len = 10  # Number of timesteps to consider
+output_dim = 33   # Predict pressures
+seq_len = 302  # Number of timesteps to consider
 num_layers = 4
 lr = 1e-3
-epochs = 100
+epochs = 20
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 print(f"Using device: {device}")
 
 # Model, loss, optimizer
 model = PressurePredictor(input_dim, hidden_dim, num_layers, output_dim, seq_len).to(device)
 criterion = nn.MSELoss()
+#criterion = nn.L1Loss()
 optimizer = optim.Adam(model.parameters(), lr=lr)
 scheduler = ReduceLROnPlateau(optimizer, mode='min', factor=0.5, patience=5, verbose=True)
 
@@ -37,35 +41,33 @@ epoch_losses = []
 for epoch in range(epochs):
     model.train()
     epoch_loss = 0
-    for batch in dataloader:
-        # Move inputs and targets to device
-        pressures = batch["pressures"][:, :-1, :].to(device)
-        targets = batch["pressures"][:, 1:, :].to(device)
-        charge_data = batch["charge_data"][:, :-1, :].to(device)
-        wall_locations = batch["wall_locations"][:, :-1, :].to(device)
+    with tqdm(dataloader, unit="batch") as tepoch:
+        for batch in tepoch:
+            tepoch.set_description(f"Epoch {epoch + 1}/{epochs}")
 
-        batch_size, seq_len, num_walls, num_wall_features = wall_locations.shape
-        wall_locations_flat = wall_locations.view(batch_size, seq_len, -1)
+            # Move inputs and targets to device
+            pressures = batch[0]["pressure"].to(device)
+            charge_data = batch[0]["charge_data"].to(device)
+            wall_locations = batch[0]["wall_locations"].to(device)
+            time = batch[0]["time"].to(device)
+            next_pressures = batch[1]["pressure"].to(device)
+            next_pressures = torch.cat([next_pressures, charge_data, wall_locations, time], dim=1)
 
-        # Combine features for inputs
-        inputs = torch.cat([pressures, charge_data, wall_locations_flat], dim=-1)
+            # Combine features for inputs
+            inputs = torch.cat([pressures, charge_data, wall_locations, time], dim=1)
 
-        target_charge_data = batch["charge_data"][:, 1:, :].to(device)
-        target_wall_locations = batch["wall_locations"][:, 1:, :].to(device)
-        target_wall_locations_flat = target_wall_locations.view(batch_size, seq_len, -1)
-        augmented_targets = torch.cat([targets, target_charge_data, target_wall_locations_flat], dim=-1)
+            # Forward pass
+            outputs = model(inputs)
+            loss = criterion(outputs, next_pressures)
 
-        # Forward pass
-        outputs = model(inputs, augmented_targets)
-        loss = criterion(outputs, targets)
+            # Backward pass
+            optimizer.zero_grad()
+            loss.backward()
+            optimizer.step()
 
-        # Backward pass
-        optimizer.zero_grad()
-        loss.backward()
-        optimizer.step()
-
-        # Accumulate loss
-        epoch_loss += loss.item()
+            # Accumulate loss
+            epoch_loss += loss.item()
+            tepoch.set_postfix(loss=loss.item(), lr=optimizer.param_groups[0]['lr'])
 
     # Normalize loss by the number of batches
     epoch_loss /= len(dataloader)
