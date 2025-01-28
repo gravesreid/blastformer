@@ -95,51 +95,50 @@ class BlastDataset(Dataset):
         return len(self.index_map)
 
     def __getitem__(self, idx):
-        """
-        Returns a tuple of length k+1 containing the data for timesteps i through i+k.
-        """
         simulation_index, start_timestep = self.index_map[idx]
-        filepaths = self.simulations[simulation_index][start_timestep:start_timestep+self.k+1]
+        filepaths = self.simulations[simulation_index][start_timestep:start_timestep + self.k + 1]
 
-        data_sequence = []
 
         for i, filepath in enumerate(filepaths):
             with open(filepath, 'r') as f:
                 data = json.load(f)
-                # extract pressure data, timestep, wall locations and charge data
-                pressure = torch.tensor(data["pressure"], dtype=torch.float32)
+
+                pressure = torch.tensor(data["pressure"], dtype=torch.float32, requires_grad=False)
                 if self.normalize:
                     pressure = (pressure - self.mean) / self.std
+
                 if i == 0:
-                    timestep = torch.tensor(data["time"]).unsqueeze(0)
-                    wall_locations = torch.tensor([list(w.values()) for w in data["wall_locations"]], dtype=torch.float32)
-                    charge_data = self._process_charge_data(data["charge_data"])
-                    # patchify the pressure data
-                    patches = patchify(pressure, 33)
-                    # embed the wall locations and charge data
+                    timestep = torch.tensor(data["time"], dtype=torch.float32, requires_grad=False).unsqueeze(0)
+                    wall_locations = torch.tensor(
+                        [list(w.values()) for w in data["wall_locations"]],
+                        dtype=torch.float32,
+                        requires_grad=False
+                    )
+                    charge_data = self._process_charge_data(data["charge_data"]).detach()
+
+                    patches = patchify(pressure, 33).detach()
                     wall_embedder = CFDFeatureEmbedder(6, 33)
                     charge_embedder = CFDFeatureEmbedder(7, 33)
                     time_embedder = CFDFeatureEmbedder(1, 33)
-                    walls_embedded = []
-                    for wall_loc in wall_locations:
-                        wall_embedded = wall_embedder(wall_loc)
-                        walls_embedded.append(wall_embedded)
-                    walls_embedded = torch.stack(walls_embedded)
-                    charge_embedded = charge_embedder(charge_data).unsqueeze(0)
-                    time_embedded = time_embedder(timestep).unsqueeze(0)
-                    data_sequence.append({
+
+                    walls_embedded = torch.stack([wall_embedder(w).detach() for w in wall_locations])
+                    charge_embedded = charge_embedder(charge_data).unsqueeze(0).detach()
+                    time_embedded = time_embedder(timestep).unsqueeze(0).detach()
+
+                    current_data = {
                         "pressure": patches,
                         "wall_locations": walls_embedded,
                         "charge_data": charge_embedded,
                         "time": time_embedded
-                    })
+                    }
                 else:
-                    patches = patchify(pressure, 33)
-                    data_sequence.append({
+                    patches = patchify(pressure, 33).detach()
+                    next_data = {
                         "pressure": patches
-                    })
-            
-        return data_sequence
+                    }
+
+        return current_data, next_data
+ 
 
     def _process_charge_data(self, charge_data):
         """
@@ -149,7 +148,7 @@ class BlastDataset(Dataset):
             charge_data["mass"],
             *charge_data["cent0"],
             *charge_data["p10"],
-        ], dtype=torch.float32)
+        ], dtype=torch.float32, requires_grad=False)
         return charge_tensor
 
     def _pad_or_truncate(self, sequence_data):

@@ -22,7 +22,9 @@ def patchify(pressure_array, patch_size):
             patches.append(patch)
         # patches is a list of arrays/tensors
         # Convert to a single tensor: shape [num_patches, patch_size]
-        patches = torch.stack([torch.tensor(p) for p in patches])
+        #patches = torch.stack([torch.tensor(p) for p in patches])
+        patches = torch.stack([torch.as_tensor(p, dtype=torch.float32) for p in patches])
+
         return patches
 
 
@@ -41,3 +43,9 @@ class CFDFeatureEmbedder(nn.Module):
         returns: shape [batch_size, embed_dim]
         """
         return self.projection(x)
+    
+def custom_collate(batch):
+    current_batch = {key: torch.stack([item[0][key] for item in batch]) for key in batch[0][0].keys()}
+    next_batch = {key: torch.stack([item[1][key] for item in batch]) for key in batch[0][1].keys()}
+    return current_batch, next_batch
+

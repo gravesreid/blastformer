@@ -6,13 +6,14 @@ from dataset import *
 import matplotlib.pyplot as plt
 from torch.optim.lr_scheduler import ReduceLROnPlateau
 from tqdm import tqdm
+from utils import custom_collate
 
-batch_size = 256
+batch_size = 400
 
 # Example Usage
 root_dir = "/home/reid/projects/blast_waves/dataset_parallel_processed_large"
 dataset = BlastDataset(root_dir, max_timesteps=1069, padding_value=0.0)
-dataloader = DataLoader(dataset, batch_size=batch_size, shuffle=True)
+dataloader = DataLoader(dataset, batch_size=batch_size, shuffle=True, num_workers=8, collate_fn=custom_collate)
 
 # Hyperparameters
 input_dim = 33
@@ -21,7 +22,7 @@ output_dim = 33   # Predict pressures
 seq_len = 302  # Number of timesteps to consider
 num_layers = 4
 lr = 1e-3
-epochs = 20
+epochs = 50
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 print(f"Using device: {device}")
 
@@ -44,17 +45,18 @@ for epoch in range(epochs):
     with tqdm(dataloader, unit="batch") as tepoch:
         for batch in tepoch:
             tepoch.set_description(f"Epoch {epoch + 1}/{epochs}")
+            current_batch, next_batch = batch
 
             # Move inputs and targets to device
-            pressures = batch[0]["pressure"].to(device)
-            charge_data = batch[0]["charge_data"].to(device)
-            wall_locations = batch[0]["wall_locations"].to(device)
-            time = batch[0]["time"].to(device)
-            next_pressures = batch[1]["pressure"].to(device)
-            next_pressures = torch.cat([next_pressures, charge_data, wall_locations, time], dim=1)
+            pressures = current_batch["pressure"].to(device)
+            charge_data = current_batch["charge_data"].to(device)
+            wall_locations = current_batch["wall_locations"].to(device)
+            time = current_batch["time"].to(device)
+            next_pressures = next_batch["pressure"].to(device)
 
             # Combine features for inputs
             inputs = torch.cat([pressures, charge_data, wall_locations, time], dim=1)
+            next_pressures = torch.cat([next_pressures, charge_data, wall_locations, time], dim=1)
 
             # Forward pass
             outputs = model(inputs)
@@ -68,6 +70,7 @@ for epoch in range(epochs):
             # Accumulate loss
             epoch_loss += loss.item()
             tepoch.set_postfix(loss=loss.item(), lr=optimizer.param_groups[0]['lr'])
+
 
     # Normalize loss by the number of batches
     epoch_loss /= len(dataloader)
