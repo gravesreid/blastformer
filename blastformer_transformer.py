@@ -1,13 +1,21 @@
 import torch
 import torch.nn as nn
+from utils import CFDFeatureEmbedder
 
 class PressurePredictor(nn.Module):
     def __init__(self, input_dim, hidden_dim, num_layers, output_dim, seq_len):
-        super(PressurePredictor, self).__init__()
+        super().__init__()
+        # Initilize feature embedding layers
+        self.wall_embedder = CFDFeatureEmbedder(6, hidden_dim)
+        self.charge_embedder = CFDFeatureEmbedder(1, hidden_dim)
+        self.time_embedder = CFDFeatureEmbedder(1, hidden_dim)
+        
+
+
         self.seq_len = seq_len
 
         # Input projection to match transformer hidden dimension
-        self.input_proj = nn.Linear(input_dim, hidden_dim)
+        self.patch_proj = nn.Linear(input_dim, hidden_dim)
 
         # Transformer Encoder
         self.encoder_layer = nn.TransformerEncoderLayer(
@@ -18,21 +26,28 @@ class PressurePredictor(nn.Module):
         # Output projection to predict pressures
         self.output_proj = nn.Linear(hidden_dim, output_dim)
 
-    def forward(self, src):
+    def forward(self, pressure_patch, charge_data, wall_locations, time):
         """
         Args:
             src: Input tensor (encoder input) of shape (batch_size, seq_len, input_dim)
         Returns:
             Output tensor of shape (batch_size, seq_len, output_dim)
         """
-        # Project inputs to hidden dimension
-        src = self.input_proj(src)  # Shape: (batch_size, seq_len, hidden_dim)
+        # Embed features
+        wall_embedded = self.wall_embedder(wall_locations)
+        charge_embedded = self.charge_embedder(charge_data)
+        time_embedded = self.time_embedder(time)
+        patch = self.patch_proj(pressure_patch).squeeze(1)
 
-        # Encode input features
-        memory = self.encoder(src)  # Shape: (batch_size, seq_len, hidden_dim)
 
-        # Decode target using encoded memory
-        output = memory
-        # Project output to predict pressures
-        output = self.output_proj(output)  # Shape: (batch_size, seq_len, output_dim)
+        # Combine features
+        src = torch.cat([patch, charge_embedded, wall_embedded, time_embedded], dim=1)
+
+        # pass through encoder
+        output = self.encoder(src)
+
+        # Project to output dimension
+        output = self.output_proj(output)
+
+
         return output

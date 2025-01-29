@@ -42,10 +42,26 @@ class CFDFeatureEmbedder(nn.Module):
         x: shape [batch_size, input_dim] 
         returns: shape [batch_size, embed_dim]
         """
+        #print(f'x shape: {x.shape}')
         return self.projection(x)
     
 def custom_collate(batch):
-    current_batch = {key: torch.stack([item[0][key] for item in batch]) for key in batch[0][0].keys()}
-    next_batch = {key: torch.stack([item[1][key] for item in batch]) for key in batch[0][1].keys()}
-    return current_batch, next_batch
+    """
+    Custom collation function to handle batching of multiple timesteps.
+    """
+    batch_size = len(batch)
+    num_timesteps = len(batch[0])  # k+1 timesteps
+
+    batched_data = {key: [] for key in batch[0][0].keys()}  # Initialize for all keys
+
+    for sample in batch:  # Iterate over batch samples
+        for t in range(num_timesteps):  # Iterate over timesteps
+            for key in sample[t]:  # Iterate over data keys
+                batched_data[key].append(sample[t][key])
+
+    # Convert lists into stacked tensors
+    for key in batched_data.keys():
+        batched_data[key] = torch.stack(batched_data[key]).view(batch_size, num_timesteps, *batched_data[key][0].shape)
+
+    return batched_data
 

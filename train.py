@@ -8,12 +8,12 @@ from torch.optim.lr_scheduler import ReduceLROnPlateau
 from tqdm import tqdm
 from utils import custom_collate
 
-batch_size = 400
+batch_size = 350
 
 # Example Usage
 root_dir = "/home/reid/projects/blast_waves/dataset_parallel_processed_large"
-dataset = BlastDataset(root_dir, max_timesteps=1069, padding_value=0.0)
-dataloader = DataLoader(dataset, batch_size=batch_size, shuffle=True, num_workers=8, collate_fn=custom_collate)
+dataset = BlastDataset(root_dir)
+dataloader = DataLoader(dataset, batch_size=batch_size, shuffle=True, num_workers=4, collate_fn=custom_collate)
 
 # Hyperparameters
 input_dim = 33
@@ -45,22 +45,20 @@ for epoch in range(epochs):
     with tqdm(dataloader, unit="batch") as tepoch:
         for batch in tepoch:
             tepoch.set_description(f"Epoch {epoch + 1}/{epochs}")
-            current_batch, next_batch = batch
 
             # Move inputs and targets to device
-            pressures = current_batch["pressure"].to(device)
-            charge_data = current_batch["charge_data"].to(device)
-            wall_locations = current_batch["wall_locations"].to(device)
-            time = current_batch["time"].to(device)
-            next_pressures = next_batch["pressure"].to(device)
+            current_pressure = batch["pressure"][:, :1, :].to(device)
+            next_pressures = batch["pressure"][:, 1:, :].to(device).squeeze(1)
+            charge_data = batch["charge_data"][:, 0, :].unsqueeze(-1).to(device)
+            wall_locations = batch["wall_locations"][:, 0, :].to(device)
+            current_time = batch["time"][:, :1, :].to(device)
+            next_time = batch["time"][:, 1:, :].to(device)
 
-            # Combine features for inputs
-            inputs = torch.cat([pressures, charge_data, wall_locations, time], dim=1)
-            next_pressures = torch.cat([next_pressures, charge_data, wall_locations, time], dim=1)
 
             # Forward pass
-            outputs = model(inputs)
-            loss = criterion(outputs, next_pressures)
+            outputs = model(current_pressure, charge_data, wall_locations, current_time)
+            predicted_pressure = outputs[:, :next_pressures.shape[1], :]
+            loss = criterion(predicted_pressure, next_pressures)
 
             # Backward pass
             optimizer.zero_grad()

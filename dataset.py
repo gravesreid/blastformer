@@ -3,18 +3,16 @@ import json
 import torch
 from torch.utils.data import Dataset, DataLoader
 from multiprocessing import Pool, cpu_count
-from utils import patchify, CFDFeatureEmbedder
+from utils import patchify, CFDFeatureEmbedder, custom_collate
 
 class BlastDataset(Dataset):
     """ Dataset for blast wave simulation from BlastFoam simulator """
 
-    def __init__(self, root_dir, k=1, normalization_file = "normalization_val.json", max_timesteps=None, padding_value=0.0, normalize=True):
+    def __init__(self, root_dir, k=1, normalization_file = "normalization_val.json",  normalize=True):
         self.data_dir = root_dir
         # simulation directories
         self.simulation_directories = [os.path.join(root_dir, d) for d in os.listdir(root_dir) if os.path.isdir(os.path.join(root_dir, d))]
         self.k = k
-        self.max_timesteps = max_timesteps
-        self.padding_value = padding_value
         self.normalize = normalize
         self.normalization_file = normalization_file
 
@@ -98,6 +96,7 @@ class BlastDataset(Dataset):
         simulation_index, start_timestep = self.index_map[idx]
         filepaths = self.simulations[simulation_index][start_timestep:start_timestep + self.k + 1]
 
+        future_data_list = []
 
         for i, filepath in enumerate(filepaths):
             with open(filepath, 'r') as f:
@@ -107,37 +106,26 @@ class BlastDataset(Dataset):
                 if self.normalize:
                     pressure = (pressure - self.mean) / self.std
 
-                if i == 0:
-                    timestep = torch.tensor(data["time"], dtype=torch.float32, requires_grad=False).unsqueeze(0)
-                    wall_locations = torch.tensor(
-                        [list(w.values()) for w in data["wall_locations"]],
-                        dtype=torch.float32,
-                        requires_grad=False
-                    )
-                    charge_data = self._process_charge_data(data["charge_data"]).detach()
+                timestep = torch.tensor(data["time"], dtype=torch.float32, requires_grad=False).unsqueeze(0)
+                wall_locations = torch.tensor(
+                    [list(w.values()) for w in data["wall_locations"]],
+                    dtype=torch.float32,
+                    requires_grad=False
+                )
+                charge_data = self._process_charge_data(data["charge_data"]).detach()
 
-                    patches = patchify(pressure, 33).detach()
-                    wall_embedder = CFDFeatureEmbedder(6, 33)
-                    charge_embedder = CFDFeatureEmbedder(7, 33)
-                    time_embedder = CFDFeatureEmbedder(1, 33)
+                patches = patchify(pressure, 33).detach()
 
-                    walls_embedded = torch.stack([wall_embedder(w).detach() for w in wall_locations])
-                    charge_embedded = charge_embedder(charge_data).unsqueeze(0).detach()
-                    time_embedded = time_embedder(timestep).unsqueeze(0).detach()
 
-                    current_data = {
-                        "pressure": patches,
-                        "wall_locations": walls_embedded,
-                        "charge_data": charge_embedded,
-                        "time": time_embedded
-                    }
-                else:
-                    patches = patchify(pressure, 33).detach()
-                    next_data = {
-                        "pressure": patches
-                    }
+                future_data_list.append({
+                    "pressure": patches,
+                    "wall_locations": wall_locations,
+                    "charge_data": charge_data,
+                    "time": timestep
+                })
+  
 
-        return current_data, next_data
+        return future_data_list
  
 
     def _process_charge_data(self, charge_data):
@@ -151,42 +139,30 @@ class BlastDataset(Dataset):
         ], dtype=torch.float32, requires_grad=False)
         return charge_tensor
 
-    def _pad_or_truncate(self, sequence_data):
-        """
-        Pad or truncate the sequence data to self.max_timesteps.
-        """
-        if self.max_timesteps:
-            if len(sequence_data) < self.max_timesteps:
-                padding = {
-                    "time": 0.0,
-                    "pressure": torch.full_like(sequence_data[0]["pressure"], self.padding_value),
-                    "wall_locations": torch.full_like(sequence_data[0]["wall_locations"], self.padding_value),
-                    "charge_data": torch.full_like(sequence_data[0]["charge_data"], self.padding_value)
-                }
-                sequence_data += [padding] * (self.max_timesteps - len(sequence_data))
-            else:
-                sequence_data = sequence_data[:self.max_timesteps]
-        return sequence_data
+
 
 def main():
     root_dir = "/home/reid/projects/blast_waves/dataset_parallel_processed_large"
 
 
-    dataset = BlastDataset(root_dir, max_timesteps=1069, padding_value=0.0)
-    dataloader = DataLoader(dataset, batch_size=12, shuffle=False)
+    dataset = BlastDataset(root_dir, k=2)
+    dataloader = DataLoader(dataset, batch_size=1, shuffle=True, num_workers=1, collate_fn=custom_collate)
 
     i = 0
     for batch in dataloader:
         i += 1
-        print(f'batch shape: {len(batch)}')
-        pressure, wall_locations, charge_data, time = batch[0]["pressure"], batch[0]["wall_locations"], batch[0]["charge_data"], batch[0]["time"]
-        print(f'Pressure shape: {pressure.shape}')
-        print(f'Wall locations shape: {wall_locations.shape}')
-        print(f'Charge data shape: {charge_data.shape}')
-        print(f'Time shape: {time.shape}')
-        next_pressure = batch[1]["pressure"]
-        print(f'Next pressure shape: {next_pressure.shape}')
-        if i == 5:
+        pressure = batch["pressure"]
+        charge_data = batch["charge_data"]
+        wall_locations = batch["wall_locations"]
+        time = batch["time"]
+
+        time_0 = time[:,0,:]
+        time_1 = time[:,1,:]
+        time_2 = time[:,2,:]
+        print(f'time_0: {time_0.item():.10f}')
+        print(f'time_1: {time_1.item():.10f}')
+        print(f'time_2: {time_2.item():.10f}')
+        if i == 2:
             break
 
 
