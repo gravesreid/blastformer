@@ -1,9 +1,9 @@
 import torch
 import torch.nn as nn
-from utils import CFDFeatureEmbedder
+from utils import CFDFeatureEmbedder, patchify
 
 class PressurePredictor(nn.Module):
-    def __init__(self, input_dim, hidden_dim, num_layers, output_dim, seq_len):
+    def __init__(self, input_dim, hidden_dim, num_layers, output_dim, seq_len, patch_size):
         super().__init__()
         # Initilize feature embedding layers
         self.wall_embedder = CFDFeatureEmbedder(6, hidden_dim)
@@ -13,6 +13,7 @@ class PressurePredictor(nn.Module):
 
 
         self.seq_len = seq_len
+        self.patch_size = patch_size
 
         # Input projection to match transformer hidden dimension
         self.patch_proj = nn.Linear(input_dim, hidden_dim)
@@ -26,7 +27,7 @@ class PressurePredictor(nn.Module):
         # Output projection to predict pressures
         self.output_proj = nn.Linear(hidden_dim, output_dim)
 
-    def forward(self, pressure_patch, charge_data, wall_locations, time):
+    def forward(self, pressure, charge_data, wall_locations, time):
         """
         Args:
             src: Input tensor (encoder input) of shape (batch_size, seq_len, input_dim)
@@ -37,7 +38,7 @@ class PressurePredictor(nn.Module):
         wall_embedded = self.wall_embedder(wall_locations)
         charge_embedded = self.charge_embedder(charge_data)
         time_embedded = self.time_embedder(time)
-        patch = self.patch_proj(pressure_patch).squeeze(1)
+        patch = self.patch_proj(pressure)
 
 
         # Combine features

@@ -4,29 +4,37 @@ import math
 
 def patchify(pressure_array, patch_size):
     """
-    pressure_array: torch.Tensor or np.array of shape (H, W) or shape (N,) 
-    patch_size: size of patch in each dimension (for 2D) or patch length for 1D
+    pressure_array: torch.Tensor or np.array of shape (H, W) 
+    patch_size: size of patch in each dimension (for 2D) 
     
     Return:
         patches: list of patches, each patch is flattened into a 1D array
     """
-    # If 1D with length = 10000, you might do something like:
-    # break it into blocks of size patch_size
-    if len(pressure_array.shape) == 1:
-        num_patches = math.ceil(pressure_array.shape[0] / patch_size)
-        patches = []
-        for p in range(num_patches):
-            start = p * patch_size
-            end = start + patch_size
-            patch = pressure_array[start:end]
-            patches.append(patch)
-        # patches is a list of arrays/tensors
-        # Convert to a single tensor: shape [num_patches, patch_size]
-        #patches = torch.stack([torch.tensor(p) for p in patches])
-        patches = torch.stack([torch.as_tensor(p, dtype=torch.float32) for p in patches])
+    # If 2D with shape (H, W), break it into patches of size (patch_size, patch_size)
+    if len(pressure_array.shape) == 2:
+        # Reshape and permute to get patches
+        patches = pressure_array.unfold(0, patch_size, patch_size).unfold(1, patch_size, patch_size)
+        patches = patches.contiguous().view(-1, patch_size * patch_size)
+        patches = patches.float()
 
         return patches
 
+def unpatchify(patches, patch_size, H, W):
+    """
+    patches: torch.Tensor of shape (N, patch_size*patch_size)
+    patch_size: size of patch in each dimension (for 2D)
+    H: height of original image
+    W: width of original image
+    
+    Return:
+        pressure_array: torch.Tensor of shape (H, W)
+    """
+    # Reshape patches to original image shape
+    patches = patches.view(-1, H // patch_size, W // patch_size, patch_size, patch_size)
+    patches = patches.permute(0, 1, 3, 2, 4).contiguous().view(H, W)
+    original_array = patches
+    
+    return original_array
 
 class CFDFeatureEmbedder(nn.Module):
     """

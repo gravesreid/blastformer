@@ -102,7 +102,8 @@ class BlastDataset(Dataset):
             with open(filepath, 'r') as f:
                 data = json.load(f)
 
-                pressure = torch.tensor(data["pressure"], dtype=torch.float32, requires_grad=False)
+                pressure_1D = torch.tensor(data["pressure"], dtype=torch.float32, requires_grad=False)
+                pressure = pressure_1D.view(99,99)
                 if self.normalize:
                     pressure = (pressure - self.mean) / self.std
 
@@ -114,7 +115,7 @@ class BlastDataset(Dataset):
                 )
                 charge_data = self._process_charge_data(data["charge_data"]).detach()
 
-                patches = patchify(pressure, 33).detach()
+                patches = patchify(pressure, 11).detach()
 
 
                 future_data_list.append({
