@@ -30,6 +30,7 @@ def unpatchify(patches, patch_size, H, W):
         pressure_array: torch.Tensor of shape (H, W)
     """
     # Reshape patches to original image shape
+
     patches = patches.view(-1, H // patch_size, W // patch_size, patch_size, patch_size)
     patches = patches.permute(0, 1, 3, 2, 4).contiguous().view(H, W)
     original_array = patches

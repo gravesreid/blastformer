@@ -76,6 +76,7 @@ times = []
 
 for batch in dataloader:
     current_pressure = batch["pressure"][:, :1, :]
+    print(f'current_pressure shape: {current_pressure.shape}')
     original_pressure = unpatchify(current_pressure, 11, 99, 99)
     charge_data = batch["charge_data"][:, 0, :].unsqueeze(-1)
     wall_locations = batch["wall_locations"][:, 0, :]

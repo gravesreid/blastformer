@@ -4,13 +4,15 @@ import matplotlib.patches as patches
 from blastformer_transformer import PressurePredictor
 from dataset import BlastDataset
 from torch.utils.data import DataLoader
+from utils import custom_collate, unpatchify
+import numpy as np
 
 def plot_reconstruction_all(data_sample, reconstructed_pressures):
     """
     Plot the ground truth and reconstructed pressure grid for all timesteps in the sample.
     """
-    times = data_sample["times"].numpy()
-    pressures = data_sample["pressures"].numpy()
+    times = np.array(data_sample["times"])
+    pressures = np.array(data_sample["pressures"])
     wall_locations = data_sample["wall_locations"][0].numpy()
     charge_data = data_sample["charge_data"].numpy()
 
@@ -18,17 +20,15 @@ def plot_reconstruction_all(data_sample, reconstructed_pressures):
     cent0 = charge_data[0][1:4]  # cent0 (x, y, z)
 
     # Determine grid size (assumes square grid)
-    grid_size = int((pressures.shape[1]) ** 0.5)
-    assert grid_size ** 2 == pressures.shape[1], "Pressure grid is not square."
+    pressures_flipped = np.swapaxes(pressures, 1, 2)
+    predicted_pressures = np.array(reconstructed_pressures)
+    predicted_pressures_flipped = np.swapaxes(predicted_pressures, 1, 2)
+
 
     # Prepare figure
     fig, axs = plt.subplots(1, 2, figsize=(16, 8))
     im_gt = axs[0].imshow(
-        pressures[0].reshape(grid_size, grid_size).T,
-        extent=(-4, 4, -4, 4),
-        origin="lower",
-        cmap="jet",
-        alpha=0.8,
+        pressures_flipped[0], extent=(-4.9, 4.9, -4.9, 4.9), origin="lower", cmap="jet", alpha=0.8
     )
     axs[0].set_title("Ground Truth")
     axs[0].set_xlabel("X-axis")
@@ -36,11 +36,7 @@ def plot_reconstruction_all(data_sample, reconstructed_pressures):
     fig.colorbar(im_gt, ax=axs[0], label="Pressure")
 
     im_recon = axs[1].imshow(
-        reconstructed_pressures[0].reshape(grid_size, grid_size).T,
-        extent=(-4, 4, -4, 4),
-        origin="lower",
-        cmap="jet",
-        alpha=0.8,
+        predicted_pressures_flipped[0], extent=(-4.9, 4.9, -4.9, 4.9), origin="lower", cmap="jet", alpha=0.8
     )
     axs[1].set_title("Reconstructed")
     axs[1].set_xlabel("X-axis")
@@ -68,14 +64,12 @@ def plot_reconstruction_all(data_sample, reconstructed_pressures):
     # Update loop for all timesteps
     for t in range(len(times)):
         # Update ground truth
-        pressure_grid_gt = pressures[t].reshape(grid_size, grid_size).T
-        im_gt.set_data(pressure_grid_gt)
-        axs[0].set_title(f"Ground Truth at Time: {times[t]:.5f}")
+        im_gt.set_data(pressures_flipped[t])
+        axs[0].set_title(f"Ground Truth at Time: {t:.5f}")
 
         # Update reconstruction
-        pressure_grid_recon = reconstructed_pressures[t].reshape(grid_size, grid_size).T
-        im_recon.set_data(pressure_grid_recon)
-        axs[1].set_title(f"Reconstructed at Time: {times[t]:.5f}")
+        im_recon.set_data(predicted_pressures_flipped[t])
+        axs[1].set_title(f"Reconstructed at Time: {t:.5f}")
 
         plt.pause(0.1)  # Pause to visualize each timestep
 
@@ -84,74 +78,59 @@ def plot_reconstruction_all(data_sample, reconstructed_pressures):
 
 # Load Trained Model
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-input_dim = 6594  # Match your dataset (pressures + charge_data + wall_locations)
+input_dim = 121  # Match your dataset (pressures + charge_data + wall_locations)
 hidden_dim = 256
-output_dim = 6561  # Number of pressures predicted
-seq_len = 1  # Context timesteps
+output_dim = 121  # Number of pressures predicted
+seq_len = 302 # Context timesteps
+patch_size = 11
 num_layers = 4
 
-model = PressurePredictor(input_dim, hidden_dim, num_layers, output_dim, seq_len).to(device)
-model.load_state_dict(torch.load("pressure_predictor.pth"))
+model = PressurePredictor(input_dim, hidden_dim, num_layers, output_dim, seq_len, patch_size).to(device)
+model.load_state_dict(torch.load("pressure_predictor.pth", weights_only=True))
 model.eval()
 
 # Load Dataset and Dataloader
-root_dir = "/home/reid/projects/blast_waves/dataset_parallel_processed"
-dataset = BlastDataset(root_dir, max_timesteps=1069, padding_value=0.0)
-dataloader = DataLoader(dataset, batch_size=1, shuffle=False)
+root_dir = "/home/reid/projects/blast_waves/dataset_parallel_processed_large"
+dataset = BlastDataset(root_dir)
+dataloader = DataLoader(dataset, batch_size=1, shuffle=False, num_workers=1, collate_fn=custom_collate)
 
+true_samples = []
+predicted_samples = []
+times = []
+i = 0
 for batch in dataloader:
+    if i > 900:
+        break
+    print(f"Processing sample {i}")
+    i += 1
     # Extract a single sample
+    current_pressure = batch["pressure"][:, :1, :].to(device).squeeze(1)
+    charge_data = batch["charge_data"][:, 0, :].unsqueeze(-1).to(device)
+    wall_locations = batch["wall_locations"][:, 0, :].to(device)
+    current_time = batch["time"][:, :1, :].to(device)
+    next_pressures = batch["pressure"][:, 1:, :].to(device).squeeze(1)
+    next_time = batch["time"][:, 1:, :].to(device)
+    times.append(next_time.detach().cpu())
+
+
+
+
+    output = model(current_pressure, charge_data, wall_locations, current_time)
+    predicted_pressures = output[:, :next_pressures.shape[1], :]
+
+
+    next_pressure_unpatched = unpatchify(next_pressures.detach().cpu().unsqueeze(1), 11, 99, 99)
+    true_samples.append(next_pressure_unpatched)
+    predicted_pressures_unpatched = unpatchify(predicted_pressures.detach().cpu().unsqueeze(1), 11, 99, 99)
+    predicted_samples.append(predicted_pressures_unpatched)
+
+
     sample = {
-        "times": batch["times"][0],
-        "pressures": batch["pressures"][0],
-        "wall_locations": batch["wall_locations"][0],
-        "charge_data": batch["charge_data"][0],
+        "times": times,
+        "pressures": true_samples,
+        "wall_locations": wall_locations.detach().cpu(),
+        "charge_data": charge_data.detach().cpu()
     }
 
-    # Initialize inputs for autoregressive prediction
-    input_pressures = batch["pressures"][:, :seq_len, :].to(device)
-    input_charge_data = batch["charge_data"][:, :seq_len, :].to(device)
-    input_wall_locations = batch["wall_locations"][:, :seq_len, :, :].to(device)
-    batch_size, seq_len, num_walls, num_wall_features = input_wall_locations.shape
-    input_wall_locations_flat = input_wall_locations.view(batch_size, seq_len, -1)
 
-    # Combine initial features for the encoder input
-    src = torch.cat([input_pressures, input_charge_data, input_wall_locations_flat], dim=-1)
-    print(f'Encoder input (src) shape: {src.shape}')
-
-    # Initialize the target sequence (tgt) with the first timestep as zeros
-    tgt = torch.zeros((batch_size, 1, src.shape[-1]), device=device)
-
-    reconstructed_pressures = []
-    with torch.no_grad():
-        for t in range(seq_len, sample["times"].shape[0]):
-            # Predict next timestep pressures
-            output = model(src, tgt).cpu()  # Predict pressures for the next timestep
-            next_pressure = output[:, -1, :]  # Extract the last predicted timestep
-            reconstructed_pressures.append(next_pressure)
-
-            # Log outputs for debugging
-            print(f"Step {t}, Output Mean: {output.mean().item()}, Std: {output.std().item()}")
-
-            # Prepare inputs for the next timestep
-            next_input_pressures = next_pressure.unsqueeze(1).to(device)
-            next_charge_data = batch["charge_data"][:, t:t + 1, :].to(device)
-            next_wall_locations = batch["wall_locations"][:, t:t + 1, :, :].to(device)
-            next_wall_locations_flat = next_wall_locations.view(batch_size, 1, -1)
-
-            # Append the predicted timestep to the target sequence
-            tgt = torch.cat([next_input_pressures, next_charge_data, next_wall_locations_flat], dim=-1)
-            print(f'Decoder input (tgt) shape: {tgt.shape}')
-
-            # Update the encoder input features
-            next_input_features = torch.cat(
-                [next_input_pressures, next_charge_data, next_wall_locations_flat], dim=-1
-            )
-            src = torch.cat([src[:, 1:, :], next_input_features], dim=1)
-
-    # Stack reconstructed pressures
-    reconstructed_pressures = torch.stack(reconstructed_pressures, dim=1)  # Shape: (batch_size, time_steps, output_dim)
-
-    # Visualize the reconstruction for all timesteps
-    plot_reconstruction_all(sample, reconstructed_pressures[0])
-    break
+plot_reconstruction_all(sample, predicted_samples)
