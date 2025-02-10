@@ -2,7 +2,7 @@ import torch
 import torch.nn as nn
 from utils import CFDFeatureEmbedder, patchify_batch
 
-class PressurePredictor(nn.Module):
+class BlastFormer(nn.Module):
     def __init__(self, input_dim, hidden_dim, num_layers, output_dim, seq_len, patch_size):
         super().__init__()
         # Initilize feature embedding layers

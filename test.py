@@ -1,7 +1,7 @@
 import torch
 import matplotlib.pyplot as plt
 import matplotlib.patches as patches
-from blastformer_transformer import PressurePredictor
+from blastformer_transformer import BlastFormer
 from dataset import BlastDataset
 from torch.utils.data import DataLoader
 from utils import custom_collate, unpatchify_batch, plot_reconstruction_all
@@ -18,7 +18,7 @@ seq_len = 302 # Context timesteps
 patch_size = 9
 num_layers = 4
 
-model = PressurePredictor(input_dim, hidden_dim, num_layers, output_dim, seq_len, patch_size).to(device)
+model = BlastFormer(input_dim, hidden_dim, num_layers, output_dim, seq_len, patch_size).to(device)
 model.load_state_dict(torch.load("pressure_predictor.pth", weights_only=True))
 model.eval()
 

@@ -5,22 +5,6 @@ import numpy as np
 import matplotlib.pyplot as plt
 import matplotlib.patches as patches
 
-def patchify(pressure_array, patch_size):
-    """
-    pressure_array: torch.Tensor or np.array of shape (H, W) 
-    patch_size: size of patch in each dimension (for 2D) 
-    
-    Return:
-        patches: list of patches, each patch is flattened into a 1D array
-    """
-    # If 2D with shape (H, W), break it into patches of size (patch_size, patch_size)
-    if len(pressure_array.shape) == 2:
-        # Reshape and permute to get patches
-        patches = pressure_array.unfold(0, patch_size, patch_size).unfold(1, patch_size, patch_size)
-        patches = patches.contiguous().view(-1, patch_size * patch_size)
-        patches = patches.float()
-
-        return patches
     
 def patchify_batch(pressure_array, patch_size):
     """

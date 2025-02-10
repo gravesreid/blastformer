@@ -1,7 +1,7 @@
 import torch
 import torch.optim as optim
 import torch.nn as nn
-from blastformer_transformer import PressurePredictor
+from blastformer_transformer import BlastFormer
 from dataset import *
 import matplotlib.pyplot as plt
 from torch.optim.lr_scheduler import CosineAnnealingLR
@@ -41,7 +41,7 @@ device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 print(f"Using device: {device}")
 
 # Model, loss, optimizer
-model = PressurePredictor(input_dim, hidden_dim, num_layers, output_dim, seq_len, patch_size).to(device)
+model = BlastFormer(input_dim, hidden_dim, num_layers, output_dim, seq_len, patch_size).to(device)
 criterion = nn.MSELoss()
 #criterion = nn.L1Loss()
 optimizer = optim.Adam(model.parameters(), lr=lr)
