@@ -3,7 +3,7 @@ import json
 import torch
 from torch.utils.data import Dataset, DataLoader
 from multiprocessing import Pool, cpu_count
-from utils import patchify, CFDFeatureEmbedder, custom_collate
+from utils import patchify_batch, CFDFeatureEmbedder, custom_collate, unpatchify_batch, plot_reconstruction_all
 
 class BlastDataset(Dataset):
     """ Dataset for blast wave simulation from BlastFoam simulator """
@@ -115,11 +115,10 @@ class BlastDataset(Dataset):
                 )
                 charge_data = self._process_charge_data(data["charge_data"]).detach()
 
-                patches = patchify(pressure, 11).detach()
 
 
                 future_data_list.append({
-                    "pressure": patches,
+                    "pressure": pressure,
                     "wall_locations": wall_locations,
                     "charge_data": charge_data,
                     "time": timestep
@@ -143,28 +142,62 @@ class BlastDataset(Dataset):
 
 
 def main():
-    root_dir = "/home/reid/projects/blast_waves/dataset_parallel_processed_large"
+    root_dir = "/home/reid/projects/blast_waves/dataset_parallel_processed_large/train"
+
+    patch_size = 9
+    W = 99
+    H = 99
+
+    original_pressures = []
+    reconstructed_pressures = []
+    charge_list = []
+    times = []
 
 
     dataset = BlastDataset(root_dir, k=2)
-    dataloader = DataLoader(dataset, batch_size=1, shuffle=True, num_workers=1, collate_fn=custom_collate)
+    dataloader = DataLoader(dataset, batch_size=32, shuffle=False, num_workers=16, collate_fn=custom_collate)
 
     i = 0
     for batch in dataloader:
         i += 1
-        pressure = batch["pressure"]
+        pressures = batch["pressure"]
+        current_pressure = pressures[:, 0, :]
+        print(f'current_pressure shape: {current_pressure.shape}')
+        next_pressures = pressures[:, 1:, :]
+        print(f'next_pressures shape: {next_pressures.shape}')
         charge_data = batch["charge_data"]
+        print(f'charge_data shape: {charge_data.shape}')
+        charge_list.append(charge_data)
         wall_locations = batch["wall_locations"]
-        time = batch["time"]
+        print(f'wall_locations shape: {wall_locations.shape}')
+        time = batch["time"][:, 0:, :]
+        print(f'time shape: {time.shape}')
+        times.append(time)
+        print(f'pressure shape: {current_pressure.shape}')
+        original_pressures.append(current_pressure)
+
+        
+        patched_pressure = patchify_batch(current_pressure, patch_size)
+        print(f'patched_pressure shape: {patched_pressure.shape}')
+        unpatched_pressure = unpatchify_batch(patched_pressure, patch_size, H, W)
+        print(f'unpatched_pressure shape: {unpatched_pressure.shape}')
+        reconstructed_pressures.append(unpatched_pressure)
+
 
         time_0 = time[:,0,:]
         time_1 = time[:,1,:]
         time_2 = time[:,2,:]
-        print(f'time_0: {time_0.item():.10f}')
-        print(f'time_1: {time_1.item():.10f}')
-        print(f'time_2: {time_2.item():.10f}')
         if i == 2:
             break
+    sample = {
+        "times": times,
+        "pressures": original_pressures,
+        "wall_locations": wall_locations,
+        "charge_data": charge_list
+        }
+
+    plot_reconstruction_all(sample, reconstructed_pressures, index = 0, show=True)
+    
 
 
 if __name__ == "__main__":

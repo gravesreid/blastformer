@@ -1,13 +1,13 @@
 import torch
 import torch.nn as nn
-from utils import CFDFeatureEmbedder, patchify
+from utils import CFDFeatureEmbedder, patchify_batch
 
 class PressurePredictor(nn.Module):
     def __init__(self, input_dim, hidden_dim, num_layers, output_dim, seq_len, patch_size):
         super().__init__()
         # Initilize feature embedding layers
         self.wall_embedder = CFDFeatureEmbedder(6, hidden_dim)
-        self.charge_embedder = CFDFeatureEmbedder(1, hidden_dim)
+        self.charge_embedder = CFDFeatureEmbedder(7, hidden_dim)
         self.time_embedder = CFDFeatureEmbedder(1, hidden_dim)
         
 
@@ -36,13 +36,14 @@ class PressurePredictor(nn.Module):
         """
         # Embed features
         wall_embedded = self.wall_embedder(wall_locations)
-        charge_embedded = self.charge_embedder(charge_data)
+        charge_embedded = self.charge_embedder(charge_data[:, 0, :])
         time_embedded = self.time_embedder(time)
-        patch = self.patch_proj(pressure)
+        patch = patchify_batch(pressure.squeeze(), self.patch_size)
+        projected_patch = self.patch_proj(patch)
 
 
         # Combine features
-        src = torch.cat([patch, charge_embedded, wall_embedded, time_embedded], dim=1)
+        src = torch.cat([projected_patch, charge_embedded.unsqueeze(1), wall_embedded, time_embedded], dim=1)
 
         # pass through encoder
         output = self.encoder(src)
