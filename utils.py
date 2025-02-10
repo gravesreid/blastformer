@@ -122,7 +122,7 @@ def plot_reconstruction_all(data_sample, reconstructed_pressures, index=0, save_
     print(f'wall_locations shape: {wall_locations.shape}')
     charge_data_og = np.array(data_sample["charge_data"])
     print(f'charge_data_og shape: {charge_data_og.shape}')
-    charge_data = charge_data_og[:,index,:,:]
+    charge_data = charge_data_og[:,index,:]
     print(f'charge_data shape: {charge_data.shape}')
     print(f'chage_data sample: {charge_data[0]}')
     reconstructed_pressures = np.array(reconstructed_pressures)[:, index,:,:]
@@ -158,9 +158,9 @@ def plot_reconstruction_all(data_sample, reconstructed_pressures, index=0, save_
         for i, wall_location in enumerate(wall_locations):
             print(f'wall_location shape: {wall_location.shape}')
             wall = patches.Rectangle(
-                (wall_location[i][0], wall_location[i][1]),
-                wall_location[i][3] - wall_location[i][0],
-                wall_location[i][4] - wall_location[i][1],
+                (wall_location[0], wall_location[1]),
+                wall_location[3] - wall_location[0],
+                wall_location[4] - wall_location[1],
                 linewidth=1,
                 edgecolor="r",
                 facecolor="none",
@@ -175,7 +175,7 @@ def plot_reconstruction_all(data_sample, reconstructed_pressures, index=0, save_
     for t in range(len(times)):
         # Extract charge centers
         #print(f'charge_data shape: {charge_data.shape}')
-        cent0 = charge_data[t][0][1:4]  # cent0 (x, y, z)
+        cent0 = charge_data[0][1:4]  # cent0 (x, y, z)
         #print(f'cent0 shape: {cent0.shape}')
         axs[0].plot(cent0[0], cent0[1], "o", color="blue", label="Charge Center")
         # Update ground truth and reconstructed data

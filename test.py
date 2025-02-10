@@ -11,11 +11,11 @@ import numpy as np
 
 # Load Trained Model
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-input_dim = 121  # Match your dataset (pressures + charge_data + wall_locations)
+input_dim = 81  # Match your dataset (pressures + charge_data + wall_locations)
 hidden_dim = 256
-output_dim = 121  # Number of pressures predicted
+output_dim = 81  # Number of pressures predicted
 seq_len = 302 # Context timesteps
-patch_size = 9
+patch_size = 11
 num_layers = 4
 
 model = BlastFormer(input_dim, hidden_dim, num_layers, output_dim, seq_len, patch_size).to(device)

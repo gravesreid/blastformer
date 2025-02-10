@@ -36,14 +36,15 @@ class BlastFormer(nn.Module):
         """
         # Embed features
         wall_embedded = self.wall_embedder(wall_locations)
-        charge_embedded = self.charge_embedder(charge_data[:, 0, :])
+        charge_embedded = self.charge_embedder(charge_data)
         time_embedded = self.time_embedder(time)
-        patch = patchify_batch(pressure.squeeze(), self.patch_size)
+        patch = patchify_batch(pressure.squeeze(1), self.patch_size)
         projected_patch = self.patch_proj(patch)
 
 
+
         # Combine features
-        src = torch.cat([projected_patch, charge_embedded.unsqueeze(1), wall_embedded, time_embedded], dim=1)
+        src = torch.cat([projected_patch, charge_embedded.unsqueeze(1), wall_embedded, time_embedded.unsqueeze(1)], dim=1)
 
         # pass through encoder
         output = self.encoder(src)
