@@ -23,14 +23,16 @@ class LightningBlastFormer(L.LightningModule):
         return self.model(current_pressure, charge_data, wall_locations, current_time)
     
     def training_step(self, batch, batch_idx):
-        current_pressure = batch[0]["pressure"]
-        next_pressures = batch[0]["pressure"]
-        next_patches = patchify_batch(next_pressures, self.patch_size)
-        charge_data = batch[0]["charge_data"]
-        wall_locations = batch[0]["wall_locations"]
-        current_time = batch[0]["time"]
-        next_time = batch[1]["time"]
-        outputs = self.model(current_pressure, charge_data, wall_locations, current_time)
+        source_pressure = batch["source_pressure"]
+        target_pressure = batch["target_pressure"]
+        next_patches = patchify_batch(target_pressure, self.patch_size)
+        source_time = batch["source_time"]
+        target_time = batch["target_time"]
+        source_wall_locations = batch["source_wall_locations"]
+        target_wall_locations = batch["target_wall_locations"]
+        source_charge_data = batch["source_charge_data"]
+        target_charge_data = batch["target_charge_data"]
+        outputs = self.model(source_pressure, source_charge_data, source_wall_locations, source_time)
         predicted_pressure = outputs[:, :next_patches.shape[1], :]
         loss = self.criterion(predicted_pressure, next_patches)
         log_values = {'train_loss': loss, 'lr': self.optimizer.param_groups[0]['lr']}
@@ -63,12 +65,9 @@ def main():
     dataset = BlastDataset(root_dir)
     dataloader = torch.utils.data.DataLoader(
     dataset,
-    batch_size=32,
+    batch_size=128,
     shuffle=True,
-    num_workers=min(12, os.cpu_count() - 1),  # Multi-worker loading
-    pin_memory=True,  # If using GPU
-    prefetch_factor=4,  # Reduce CPU bottleneck
-    persistent_workers=True  # Avoid restarting workers
+    num_workers=min(8, os.cpu_count() - 1),  # Multi-worker loading
     )
 
     blastformer = LightningBlastFormer(blastformer, patch_size=patch_size)

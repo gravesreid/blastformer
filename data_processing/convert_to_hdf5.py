@@ -15,34 +15,48 @@ def convert_simulation_to_hdf5(sim_dir, output_hdf5):
     json_files = sorted(
         [f for f in os.listdir(sim_dir) if f.endswith('.json')],
         key=lambda x: int(x.split('_')[-1].split('.')[0])  # Sort by timestep index
-    )
+    ) # this is a list of the json files for the simulation run
 
-    with h5py.File(output_hdf5, "w") as hdf5_file:
-        for timestep_idx, json_file in enumerate(tqdm(json_files, desc=f"Processing {sim_dir}", leave=False)):
-            json_path = os.path.join(sim_dir, json_file)
+    # Now we break up the files into data samples. Call the source timestep_i, and the target timestep_i+1
+    total_timesteps = len(json_files)
+    for index in tqdm(range(total_timesteps - 1), desc=f"Processing {sim_dir}", leave=False):
+        source_index = index
+        target_index = index + 1
+        source_json_file = json_files[source_index]
+        with open(os.path.join(sim_dir, source_json_file), "r") as f:
+            source_data = json.load(f)
+        target_json_file = json_files[target_index]
+        with open(os.path.join(sim_dir, target_json_file), "r") as f:
+            target_data = json.load(f)
+        source_pressure = np.array(source_data["pressure"], dtype=np.float32).reshape(99, 99)
+        source_time = np.array([source_data["time"]], dtype=np.float32)
+        source_wall_locations = np.array([list(w.values()) for w in source_data["wall_locations"]], dtype=np.float32)
+        source_charge_data = np.array([
+            source_data["charge_data"]["mass"],
+            *source_data["charge_data"]["cent0"],
+            *source_data["charge_data"]["p10"],
+        ], dtype=np.float32)
+        target_pressure = np.array(target_data["pressure"], dtype=np.float32).reshape(99, 99)
+        target_time = np.array([target_data["time"]], dtype=np.float32)
+        target_wall_locations = np.array([list(w.values()) for w in target_data["wall_locations"]], dtype=np.float32)
+        target_charge_data = np.array([
+            target_data["charge_data"]["mass"],
+            *target_data["charge_data"]["cent0"],
+            *target_data["charge_data"]["p10"],
+        ], dtype=np.float32)
 
-            # Read JSON data
-            with open(json_path, "r") as f:
-                data = json.load(f)
+        # now make a new hdf5 file for each pair of timesteps
+        with h5py.File(output_hdf5.replace(".hdf5", f"_{source_index}.hdf5"), "w") as hdf5_file:
+            grp = hdf5_file.create_group(f"timestep_{source_index}")
+            grp.create_dataset("source_pressure", data=source_pressure)
+            grp.create_dataset("source_time", data=source_time)
+            grp.create_dataset("source_wall_locations", data=source_wall_locations)
+            grp.create_dataset("source_charge_data", data=source_charge_data)
+            grp.create_dataset("target_pressure", data=target_pressure)
+            grp.create_dataset("target_time", data=target_time)
+            grp.create_dataset("target_wall_locations", data=target_wall_locations)
+            grp.create_dataset("target_charge_data", data=target_charge_data)
 
-            # Extract structured data
-            pressure = np.array(data["pressure"], dtype=np.float32).reshape(99, 99)
-            time = np.array([data["time"]], dtype=np.float32)
-            wall_locations = np.array([list(w.values()) for w in data["wall_locations"]], dtype=np.float32)
-            charge_data = np.array([
-                data["charge_data"]["mass"],
-                *data["charge_data"]["cent0"],
-                *data["charge_data"]["p10"],
-            ], dtype=np.float32)
-
-            # Create a group for each timestep
-            grp = hdf5_file.create_group(f"timestep_{timestep_idx}")
-            grp.create_dataset("pressure", data=pressure)
-            grp.create_dataset("time", data=time)
-            grp.create_dataset("wall_locations", data=wall_locations)
-            grp.create_dataset("charge_data", data=charge_data)
-
-    print(f"✅ Saved {sim_dir} -> {output_hdf5}")
 
 
 def convert_dataset_to_hdf5(root_dir, output_dir):

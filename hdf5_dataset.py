@@ -9,7 +9,7 @@ from utils import patchify_batch, unpatchify_batch, plot_reconstruction_all
 class BlastDataset(Dataset):
     """Dataset for BlastFoam simulations stored in HDF5 format."""
 
-    def __init__(self, root_dir, k=1, normalization_file = "normalization_val.json", normalize=True):
+    def __init__(self, root_dir, normalization_file = "normalization_val.json", normalize=True):
         """
         Args:
             root_dir (str): Root directory containing 'train', 'test', 'validate' HDF5 subdirectories.
@@ -17,35 +17,33 @@ class BlastDataset(Dataset):
             normalize (bool): Whether to normalize the pressure data.
         """
         self.root_dir = root_dir
-        self.k = k
         self.normalize = normalize
         self.normalization_file = normalization_file
 
         # Get all simulation files in the dataset
-        self.simulation_files = []
+        self.file_list = []
         for split in ["train", "test", "validate"]:
             split_path = os.path.join(root_dir, split)
             if os.path.exists(split_path):
-                self.simulation_files.extend([
+                self.file_list.extend([
                     os.path.join(split_path, f) for f in os.listdir(split_path) if f.endswith(".hdf5")
                 ])
 
-        # Create index mapping (simulation index, start timestep)
-        self.index_map = []
-        self.simulation_lengths = {}
-
-        for sim_idx, sim_path in enumerate(self.simulation_files):
-            with h5py.File(sim_path, "r") as f:
-                num_timesteps = len(f.keys())  # Number of timesteps
-                self.simulation_lengths[sim_idx] = num_timesteps
-                for start_timestep in range(num_timesteps - k):
-                    self.index_map.append((sim_idx, start_timestep))
+        self.file_list.sort(key=self._extract_simulation_and_timestep)
 
 
         if os.path.exists(self.normalization_file):
             self.mean, self.std = self._load_normalization()
         else:
             self.mean, self.std = self._compute_normalization()
+
+    def _extract_simulation_and_timestep(self, filename):
+        """Extracts the simulation and timestep number from the filename for sorting."""
+        base_name = os.path.basename(filename)
+        parts = base_name.split('_')
+        simulation_number = int(parts[0])  # First part is the simulation number
+        timestep_number = int(parts[1].split('.')[0])  # Second part is the timestep number
+        return simulation_number, timestep_number
 
     def _compute_normalization(self):
         """Compute mean and std of pressure values across dataset."""
@@ -76,46 +74,51 @@ class BlastDataset(Dataset):
         return params["mean"], params["std"]
 
     def __len__(self):
-        return len(self.index_map)
+        return len(self.file_list)
 
     def __getitem__(self, idx):
-        sim_idx, start_timestep = self.index_map[idx]
-        sim_path = self.simulation_files[sim_idx]
+        sample_path = self.file_list[idx]
+        with h5py.File(sample_path, "r") as f:
+            # the filename has format simulationNumber_timestepNumber.hdf5
+            #extract simulation and timestep number
+            filename = os.path.basename(sample_path)
+            simulation_number, timestep_number = self._extract_simulation_and_timestep(filename)
+            timestep_key = list(f.keys())[0]
+            data = f[timestep_key]
+            source_pressure = torch.tensor(data["source_pressure"][:], dtype=torch.float32)
+            target_pressure = torch.tensor(data["target_pressure"][:], dtype=torch.float32)
+            source_time = torch.tensor(data["source_time"][:], dtype=torch.float32)
+            target_time = torch.tensor(data["target_time"][:], dtype=torch.float32)
+            source_wall_locations = torch.tensor(data["source_wall_locations"][:], dtype=torch.float32)
+            target_wall_locations = torch.tensor(data["target_wall_locations"][:], dtype=torch.float32)
+            source_charge_data = torch.tensor(data["source_charge_data"][:], dtype=torch.float32)
+            target_charge_data = torch.tensor(data["target_charge_data"][:], dtype=torch.float32)
 
-        future_data_list = []
+            if self.normalize:
+                source_pressure = (source_pressure - self.mean) / self.std
+                target_pressure = (target_pressure - self.mean) / self.std
 
-        with h5py.File(sim_path, "r") as f:
-            for i in range(self.k + 1):
-                timestep_group = f[f"timestep_{start_timestep + i}"]
-                
-                pressure = torch.tensor(timestep_group["pressure"][:], dtype=torch.float32)
-                if self.normalize:
-                    pressure = (pressure - self.mean) / self.std
-
-                time = torch.tensor(timestep_group["time"][:], dtype=torch.float32)
-                wall_locations = torch.tensor(timestep_group["wall_locations"][:], dtype=torch.float32)
-                charge_data = torch.tensor(timestep_group["charge_data"][:], dtype=torch.float32)
-
-                future_data_list.append({
-                    "pressure": pressure,
-                    "wall_locations": wall_locations,
-                    "charge_data": charge_data,
-                    "time": time
-                })
-
-        return future_data_list
+        return {
+            "simulation_number": simulation_number,
+            "timestep_number": timestep_number,
+            "source_pressure": source_pressure,
+            "target_pressure": target_pressure,
+            "source_time": source_time,
+            "target_time": target_time,
+            "source_wall_locations": source_wall_locations,
+            "target_wall_locations": target_wall_locations,
+            "source_charge_data": source_charge_data,
+            "target_charge_data": target_charge_data
+        }
 
 
 def main():
-    dataset = BlastDataset("/home/reid/projects/blast_waves/hdf5_dataset", k=1, normalize=True)
+    dataset = BlastDataset("/home/reid/projects/blast_waves/hdf5_dataset", normalize=True)
     dataloader = DataLoader(
     dataset,
     batch_size=32,
     shuffle=False,
     num_workers=min(12, os.cpu_count() - 1),  # Multi-worker loading
-    pin_memory=True,  # If using GPU
-    prefetch_factor=4,  # Reduce CPU bottleneck
-    persistent_workers=True  # Avoid restarting workers
     )
 
     original_pressures = []
@@ -123,40 +126,41 @@ def main():
     times = []
     charge_list = []
 
-    i = 0
     for batch in dataloader:
-        if i > 200:
+        simulation_number = batch["simulation_number"]
+        if simulation_number[0] != 0:
             break
-        print(f'batch length: {len(batch)}')
-        pressure = batch[0]["pressure"]
-        original_pressures.append(pressure)
-        print(f'pressure shape: {pressure.shape}')
-        charge_data = batch[0]["charge_data"]
-        charge_list.append(charge_data)
-        print(f'charge_data shape: {charge_data.shape}')
-        wall_locations = batch[0]["wall_locations"]
-        print(f'wall_locations shape: {wall_locations.shape}')
-        time = batch[0]["time"]
-        times.append(time)
-        print(f'time shape: {time.shape}')
-        print(f'time: {time}')
-        next_time = batch[1]["time"]
-        print(f'next time shape: {next_time.shape}')
-        print(f'next time: {next_time}')
-        patched_pressures = patchify_batch(pressure, 11)
-        print(f'patched_pressures shape: {patched_pressures.shape}')
-        unpatched_pressures = unpatchify_batch(patched_pressures, 11, 99, 99)
-        print(f'unpatched_pressures shape: {unpatched_pressures.shape}')
-        reconstructed_pressures.append(unpatched_pressures)
+        timestep_number = batch["timestep_number"]
+        source_pressure = batch["source_pressure"]
+        print(f'source_pressure shape: {source_pressure.shape}')
+        original_pressures.append(source_pressure)
+        target_pressure = batch["target_pressure"]
+        source_time = batch["source_time"]
+        print(f'source_time shape: {source_time.shape}')
+        times.append(source_time)
+        target_time = batch["target_time"]
+        source_wall_locations = batch["source_wall_locations"]
+        print(f'source_wall_locations shape: {source_wall_locations.shape}')
+        target_wall_locations = batch["target_wall_locations"]
+        source_charge_data = batch["source_charge_data"]
+        print(f'source_charge_data shape: {source_charge_data.shape}')
+        charge_list.append(source_charge_data)
+        target_charge_data = batch["target_charge_data"]
 
-        i += 1
+        # Patchify the batch
+        patched_source_pressure = patchify_batch(source_pressure, 11)
+        print(f'patched_source_pressure shape: {patched_source_pressure.shape}')
+        unpatched_source_pressure = unpatchify_batch(patched_source_pressure, 11, 99, 99)
+        reconstructed_pressures.append(unpatched_source_pressure)
+    
     sample = {
         "times": times,
         "pressures": original_pressures,
-        "wall_locations": wall_locations,
+        "wall_locations": source_wall_locations,
         "charge_data": charge_list
     }
-    plot_reconstruction_all(sample, reconstructed_pressures, index=0, show=True)
+    plot_reconstruction_all(sample, reconstructed_pressures, index=0, save_dir=None, show=True)
+
         
 
 if __name__ == "__main__":
