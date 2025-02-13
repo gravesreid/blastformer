@@ -9,7 +9,7 @@ from tqdm import tqdm
 from utils import custom_collate, scaledlp_loss, patchify_batch, unpatchify_batch, plot_reconstruction_all
 import random
 
-batch_size = 512
+batch_size = 64
 visualize_interval = 1
 plt.ion()
 save_dir = "/home/reid/projects/blast_waves/figures/training"
@@ -19,16 +19,16 @@ if not os.path.exists(save_dir):
 
 root_dir = "/home/reid/projects/blast_waves/hdf5_dataset"
 train_dataset = BlastDataset(root_dir)
-train_dataloader = DataLoader(train_dataset, batch_size=batch_size, shuffle=True, num_workers=16)
+train_dataloader = DataLoader(train_dataset, batch_size=batch_size, shuffle=True, num_workers=min(8, os.cpu_count() - 1))
 
 
 
 # Hyperparameters
-input_dim = 81
+patch_size = 9
+input_dim = (99**2)//(patch_size**2)
 hidden_dim = 256
-output_dim = 81 
+output_dim = input_dim
 seq_len = 302  
-patch_size = 11
 num_layers = 4
 lr = 1e-4
 epochs = 50

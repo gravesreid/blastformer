@@ -9,7 +9,7 @@ from utils import patchify_batch, unpatchify_batch, plot_reconstruction_all
 class BlastDataset(Dataset):
     """Dataset for BlastFoam simulations stored in HDF5 format."""
 
-    def __init__(self, root_dir, normalization_file = "normalization_val.json", normalize=True):
+    def __init__(self, root_dir, normalization_file = "normalization_val.json", normalize=True, split="train"):
         """
         Args:
             root_dir (str): Root directory containing 'train', 'test', 'validate' HDF5 subdirectories.
@@ -19,15 +19,15 @@ class BlastDataset(Dataset):
         self.root_dir = root_dir
         self.normalize = normalize
         self.normalization_file = normalization_file
+        self.split = split
 
         # Get all simulation files in the dataset
         self.file_list = []
-        for split in ["train", "test", "validate"]:
-            split_path = os.path.join(root_dir, split)
-            if os.path.exists(split_path):
-                self.file_list.extend([
-                    os.path.join(split_path, f) for f in os.listdir(split_path) if f.endswith(".hdf5")
-                ])
+        split_path = os.path.join(root_dir, self.split)
+        if os.path.exists(split_path):
+            self.file_list.extend([
+                os.path.join(split_path, f) for f in os.listdir(split_path) if f.endswith(".hdf5")
+            ])
 
         self.file_list.sort(key=self._extract_simulation_and_timestep)
 
