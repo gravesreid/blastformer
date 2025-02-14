@@ -9,9 +9,8 @@ from tqdm import tqdm
 from utils import custom_collate, scaledlp_loss, patchify_batch, unpatchify_batch, plot_reconstruction_all
 import random
 
-batch_size = 64
+batch_size = 32
 visualize_interval = 1
-plt.ion()
 save_dir = "/home/reid/projects/blast_waves/figures/training"
 if not os.path.exists(save_dir):
     os.makedirs(save_dir)
@@ -19,19 +18,19 @@ if not os.path.exists(save_dir):
 
 root_dir = "/home/reid/projects/blast_waves/hdf5_dataset"
 train_dataset = BlastDataset(root_dir)
-train_dataloader = DataLoader(train_dataset, batch_size=batch_size, shuffle=True, num_workers=min(8, os.cpu_count() - 1))
+train_dataloader = DataLoader(train_dataset, batch_size=batch_size, shuffle=True, num_workers=min(16, os.cpu_count() - 1))
 
 
 
 # Hyperparameters
-patch_size = 9
+patch_size = 33
 input_dim = (99**2)//(patch_size**2)
 hidden_dim = 256
 output_dim = input_dim
 seq_len = 302  
 num_layers = 4
 lr = 1e-4
-epochs = 50
+epochs = 1000
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 print(f"Using device: {device}")
 
@@ -46,6 +45,7 @@ best_model = None
 best_loss = float("inf")
 
 epoch_losses = []
+num_epochs_since_improvement = 0
 
 # Training loop
 for epoch in range(epochs):
@@ -92,12 +92,21 @@ for epoch in range(epochs):
 
     # Save best model
     if epoch_loss < best_loss:
-        print(f"New best model found!Training loss: {epoch_loss:.4f}")
+        num_epochs_since_improvement = 0
+        print(f"New best model found!Training loss: {epoch_loss:.6f}")
         best_loss = epoch_loss
         best_model = model.state_dict()
+    else:
+        num_epochs_since_improvement += 1
+        print(f"No improvement in training loss. Current loss: {epoch_loss:.6f}")
+        if num_epochs_since_improvement > 50:
+            print("Early stopping...")
+            break
+    # Visualize predictions
+
 
     scheduler.step()
-    print(f"Epoch {epoch + 1}/{epochs}, Loss: {epoch_loss:.4f}")
+    print(f"Epoch {epoch + 1}/{epochs}, Loss: {epoch_loss:.6f}")
 
 # Save the best model
 torch.save(best_model, "pressure_predictor.pth")
