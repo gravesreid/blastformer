@@ -29,7 +29,6 @@ def patchify_batch(pressure_array, patch_size):
     # Extract patches using unfold
     patches = unfold(pressure_array.unsqueeze(1)) # add channel dimension. The output shape is (batch_size, patch_size * patch_size, num_patches)
     
-    
     return patches.float()
 
 def unpatchify_batch(patches, patch_size, H, W):
@@ -51,23 +50,6 @@ def unpatchify_batch(patches, patch_size, H, W):
     
     return original_array
 
-
-class CFDFeatureEmbedder(nn.Module):
-    """
-    Transforms raw features (time, obstacle, charge) into tokens
-    of shape [batch_size, embed_dim].
-    """
-    def __init__(self, input_dim, embed_dim):
-        super().__init__()
-        self.projection = nn.Linear(input_dim, embed_dim)
-
-    def forward(self, x):
-        """
-        x: shape [batch_size, input_dim] 
-        returns: shape [batch_size, embed_dim]
-        """
-        #print(f'x shape: {x.shape}')
-        return self.projection(x)
     
 def custom_collate(batch):
     """

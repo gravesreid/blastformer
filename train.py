@@ -9,7 +9,7 @@ from tqdm import tqdm
 from utils import custom_collate, scaledlp_loss, patchify_batch, unpatchify_batch, plot_reconstruction_all
 import random
 
-batch_size = 32
+batch_size = 700
 visualize_interval = 1
 save_dir = "/home/reid/projects/blast_waves/figures/training"
 if not os.path.exists(save_dir):
@@ -23,7 +23,7 @@ train_dataloader = DataLoader(train_dataset, batch_size=batch_size, shuffle=True
 
 
 # Hyperparameters
-patch_size = 33
+patch_size = 9
 input_dim = (99**2)//(patch_size**2)
 hidden_dim = 256
 output_dim = input_dim

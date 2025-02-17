@@ -1,7 +1,7 @@
 import torch
 import matplotlib.pyplot as plt
 import matplotlib.patches as patches
-from blastformer_transformer import BlastFormer
+from blastformer_transformer import BlastFormer, PatchEmbed
 from hdf5_dataset import BlastDataset
 from torch.utils.data import DataLoader
 from utils import custom_collate, unpatchify_batch, plot_reconstruction_all
@@ -11,7 +11,7 @@ import os
 
 
 # Load Trained Model
-patch_size = 3
+patch_size = 9
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 input_dim = (99**2)//(patch_size**2)
 hidden_dim = 256
