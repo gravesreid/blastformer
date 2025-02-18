@@ -74,7 +74,7 @@ def train(args):
             next_time = batch["target_time"].to(device)
 
             outputs = model(current_pressure, charge_data, wall_locations, current_time)
-            predicted_pressure = outputs
+            predicted_pressure = outputs.squeeze(1)
             loss = l1(predicted_pressure, current_pressure)
 
 

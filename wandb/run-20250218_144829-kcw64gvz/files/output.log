@@ -1,0 +1,47 @@
+02:48:30 - INFO: Starting epoch 0:
+  0%|▌                                                                                                                                                                              | 6/1870 [00:03<15:32,  2.00it/s, epoch_loss=0.198, learning_rate=0.0001]
+predicted_pressure shape: torch.Size([128, 99, 99])
+current_pressure shape: torch.Size([128, 99, 99])
+predicted_pressure shape: torch.Size([128, 99, 99])
+current_pressure shape: torch.Size([128, 99, 99])
+predicted_pressure shape: torch.Size([128, 99, 99])
+current_pressure shape: torch.Size([128, 99, 99])
+predicted_pressure shape: torch.Size([128, 99, 99])
+current_pressure shape: torch.Size([128, 99, 99])
+predicted_pressure shape: torch.Size([128, 99, 99])
+current_pressure shape: torch.Size([128, 99, 99])
+predicted_pressure shape: torch.Size([128, 99, 99])
+current_pressure shape: torch.Size([128, 99, 99])
+Traceback (most recent call last):
+  File "/home/reid/projects/blast_waves/blastformer/lucid_train.py", line 151, in <module>
+    launch()
+  File "/home/reid/projects/blast_waves/blastformer/lucid_train.py", line 147, in launch
+    train(args)
+  File "/home/reid/projects/blast_waves/blastformer/lucid_train.py", line 66, in train
+    for i, batch in enumerate(pbar):
+  File "/home/reid/anaconda3/envs/blast_waves/lib/python3.12/site-packages/tqdm/std.py", line 1181, in __iter__
+    for obj in iterable:
+               ^^^^^^^^
+  File "/home/reid/anaconda3/envs/blast_waves/lib/python3.12/site-packages/torch/utils/data/dataloader.py", line 701, in __next__
+    data = self._next_data()
+           ^^^^^^^^^^^^^^^^^
+  File "/home/reid/anaconda3/envs/blast_waves/lib/python3.12/site-packages/torch/utils/data/dataloader.py", line 757, in _next_data
+    data = self._dataset_fetcher.fetch(index)  # may raise StopIteration
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/reid/anaconda3/envs/blast_waves/lib/python3.12/site-packages/torch/utils/data/_utils/fetch.py", line 52, in fetch
+    data = [self.dataset[idx] for idx in possibly_batched_index]
+            ~~~~~~~~~~~~^^^^^
+  File "/home/reid/projects/blast_waves/blastformer/hdf5_dataset.py", line 95, in __getitem__
+    target_charge_data = torch.tensor(data["target_charge_data"][:], dtype=torch.float32)
+                                      ~~~~^^^^^^^^^^^^^^^^^^^^^^
+  File "h5py/_objects.pyx", line 54, in h5py._objects.with_phil.wrapper
+  File "h5py/_objects.pyx", line 55, in h5py._objects.with_phil.wrapper
+  File "/home/reid/anaconda3/envs/blast_waves/lib/python3.12/site-packages/h5py/_hl/group.py", line 366, in __getitem__
+    return dataset.Dataset(oid, readonly=(self.file.mode == 'r'))
+                                          ^^^^^^^^^^^^^^
+  File "h5py/_objects.pyx", line 54, in h5py._objects.with_phil.wrapper
+  File "h5py/_objects.pyx", line 55, in h5py._objects.with_phil.wrapper
+  File "/home/reid/anaconda3/envs/blast_waves/lib/python3.12/site-packages/h5py/_hl/files.py", line 323, in mode
+    return 'r+' if self.id.get_intent() & write_intent else 'r'
+                   ^^^^^^^^^^^^^^^^^^^^
+KeyboardInterrupt

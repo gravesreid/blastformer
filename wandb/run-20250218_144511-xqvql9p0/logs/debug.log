@@ -26,3 +26,4 @@ config: {'run_name': 'lucid_blastformer_0', 'patience': 10, 'epochs': 10, 'batch
 2025-02-18 14:45:12,513 INFO    MainThread:3051399 [wandb_run.py:_config_callback():1253] config_cb batch_size 128 None
 2025-02-18 14:45:12,514 INFO    MainThread:3051399 [wandb_config.py:__setitem__():154] config set lr = 0.0001 - <bound method Run._config_callback of <wandb.sdk.wandb_run.Run object at 0x7fc58dd8a5d0>>
 2025-02-18 14:45:12,514 INFO    MainThread:3051399 [wandb_run.py:_config_callback():1253] config_cb lr 0.0001 None
+2025-02-18 14:47:42,359 WARNING MsgRouterThr:3051399 [router.py:message_loop():75] message_loop has been closed
