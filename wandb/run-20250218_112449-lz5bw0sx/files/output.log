@@ -1,0 +1,39 @@
+11:24:55 - INFO: Starting epoch 0:
+  0%|                                                                                                                                                                                                                             | 0/239282 [00:00<?, ?it/s]
+current_pressure shape: torch.Size([1, 99, 99])
+Traceback (most recent call last):
+  File "/home/reid/projects/blast_waves/blastformer/lucid_train.py", line 159, in <module>
+    launch()
+  File "/home/reid/projects/blast_waves/blastformer/lucid_train.py", line 155, in launch
+    train(args)
+  File "/home/reid/projects/blast_waves/blastformer/lucid_train.py", line 70, in train
+    current_patches = patch_embedder(current_pressure)
+                      ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/reid/anaconda3/envs/blast_waves/lib/python3.12/site-packages/torch/nn/modules/module.py", line 1736, in _wrapped_call_impl
+    return self._call_impl(*args, **kwargs)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/reid/anaconda3/envs/blast_waves/lib/python3.12/site-packages/torch/nn/modules/module.py", line 1747, in _call_impl
+    return forward_call(*args, **kwargs)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/reid/projects/blast_waves/blastformer/blastformer_transformer.py", line 15, in forward
+    return self.proj(x)
+           ^^^^^^^^^^^^
+  File "/home/reid/anaconda3/envs/blast_waves/lib/python3.12/site-packages/torch/nn/modules/module.py", line 1736, in _wrapped_call_impl
+    return self._call_impl(*args, **kwargs)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/reid/anaconda3/envs/blast_waves/lib/python3.12/site-packages/torch/nn/modules/module.py", line 1747, in _call_impl
+    return forward_call(*args, **kwargs)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/reid/anaconda3/envs/blast_waves/lib/python3.12/site-packages/torch/nn/modules/container.py", line 250, in forward
+    input = module(input)
+            ^^^^^^^^^^^^^
+  File "/home/reid/anaconda3/envs/blast_waves/lib/python3.12/site-packages/torch/nn/modules/module.py", line 1736, in _wrapped_call_impl
+    return self._call_impl(*args, **kwargs)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/reid/anaconda3/envs/blast_waves/lib/python3.12/site-packages/torch/nn/modules/module.py", line 1747, in _call_impl
+    return forward_call(*args, **kwargs)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/reid/anaconda3/envs/blast_waves/lib/python3.12/site-packages/einops/layers/torch.py", line 14, in forward
+    recipe = self._multirecipe[input.ndim]
+             ~~~~~~~~~~~~~~~~~^^^^^^^^^^^^
+KeyError: 3

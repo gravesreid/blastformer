@@ -1,0 +1,7 @@
+{"time":"2025-02-18T14:45:12.141355654-05:00","level":"INFO","msg":"stream: starting","core version":"0.19.6","symlink path":"/home/reid/projects/blast_waves/blastformer/wandb/run-20250218_144511-xqvql9p0/logs/debug-core.log"}
+{"time":"2025-02-18T14:45:12.25415608-05:00","level":"INFO","msg":"created new stream","id":"xqvql9p0"}
+{"time":"2025-02-18T14:45:12.25421124-05:00","level":"INFO","msg":"stream: started","id":"xqvql9p0"}
+{"time":"2025-02-18T14:45:12.254287406-05:00","level":"INFO","msg":"writer: Do: started","stream_id":"xqvql9p0"}
+{"time":"2025-02-18T14:45:12.254345303-05:00","level":"INFO","msg":"sender: started","stream_id":"xqvql9p0"}
+{"time":"2025-02-18T14:45:12.254412683-05:00","level":"INFO","msg":"handler: started","stream_id":"xqvql9p0"}
+{"time":"2025-02-18T14:45:12.458340426-05:00","level":"INFO","msg":"Starting system monitor"}

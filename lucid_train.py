@@ -14,7 +14,7 @@ import math
 import matplotlib.pyplot as plt
 from utils import *
 from hdf5_dataset import *
-from lucid_blastformer import *
+from blastformer_transformer import *
 
 logging.basicConfig(format="%(asctime)s - %(levelname)s: %(message)s", level=logging.INFO, datefmt="%I:%M:%S")
 
@@ -23,13 +23,20 @@ def train(args):
     setup_logging(args.run_name)
     device = args.device
 
-    dataset = BlastDataset(args.dataset_path, split="test", normalize=False)
+    dataset = BlastDataset(args.dataset_path, split="test", normalize=True)
     dataloader = DataLoader(dataset, batch_size=args.batch_size, shuffle=True)
     l = len(dataloader) # used for logging
 
     patch_size = args.patch_size
+    hidden_dim = args.hidden_dim
+    num_layers = args.num_layers
+    seq_len = args.seq_len
+    output_dim = 99
+    input_dim = (99**2)//(patch_size**2)
 
-    model = SimpleViT(image_size=99**2, patch_size=patch_size, output_dim=99**2, dim=256, depth=4, heads=4, mlp_dim=32).to(device)
+    model = BlastFormer(input_dim, hidden_dim, num_layers, output_dim, seq_len, patch_size).to(device)
+    patch_embedder = PatchEmbed(1, output_dim, patch_size).to(device)
+    unpatcher = UnpatchEmbed(1, output_dim, patch_size, 99**2).to(device)
 
     optimizer = optim.AdamW(model.parameters(), lr=args.lr)
     scheduler = CosineAnnealingLR(optimizer, T_max=args.epochs, eta_min=0)
@@ -48,7 +55,7 @@ def train(args):
     training_loss = []
 
     best_loss = float('inf')
-    patience = 200
+    patience = args.patience
     epochs_no_improve = 0
 
     for epoch in range(args.epochs):
@@ -58,28 +65,17 @@ def train(args):
 
         for i, batch in enumerate(pbar):
             # Move inputs and targets to device
-            current_pressure = batch["source_pressure"].to(device)
-            print(f'current_pressure shape: {current_pressure.shape}')
-            current_patches = patchify_batch(current_pressure, patch_size)
-            print(f'current_patches shape: {current_patches.shape}')
+            current_pressure = batch["source_pressure"].to(device) # shape: (batch_size, 99,99)
             next_pressures = batch["target_pressure"].to(device)
-            print(f'next_pressures shape: {next_pressures.shape}')
             next_patches = patchify_batch(next_pressures, patch_size)
-            print(f'next_patches shape: {next_patches.shape}')
             charge_data = batch["source_charge_data"].to(device) # shape: (batch_size, time, 7)
-            print(f'charge_data shape: {charge_data.shape}')
             wall_locations = batch["source_wall_locations"].to(device)
-            print(f'wall_locations shape: {wall_locations.shape}')
             current_time = batch["source_time"].to(device)
-            print(f'current_time shape: {current_time.shape}')
             next_time = batch["target_time"].to(device)
-            print(f'next_time shape: {next_time.shape}')
 
             outputs = model(current_pressure, charge_data, wall_locations, current_time)
-            print(f'outputs shape: {outputs.shape}')
-            predicted_patches = outputs[:, :patch_size**2, :]
-            print(f'predicted_patches shape: {predicted_patches.shape}')
-            loss = l1(current_patches, predicted_patches)
+            predicted_pressure = outputs
+            loss = l1(predicted_pressure, current_pressure)
 
 
             optimizer.zero_grad()
@@ -135,9 +131,13 @@ def launch():
     import argparse
     parser = argparse.ArgumentParser()
     parser.add_argument('--run_name', type=str, default="lucid_blastformer_0")
+    parser.add_argument('--patience', type=int, default=10)
     parser.add_argument('--epochs', type=int, default=10)
-    parser.add_argument('--batch_size', type=int, default=1)
-    parser.add_argument('--patch_size', type=int, default=3)
+    parser.add_argument('--batch_size', type=int, default=128)
+    parser.add_argument('--patch_size', type=int, default=9)
+    parser.add_argument('--hidden_dim', type=int, default=32)
+    parser.add_argument('--num_layers', type=int, default=4)
+    parser.add_argument('--seq_len', type=int, default=302)
     parser.add_argument('--dataset_path', type=str, default="/home/reid/projects/blast_waves/hdf5_dataset")
     parser.add_argument('--device', type=str, default="cuda")
     parser.add_argument('--lr', type=float, default=1e-4)

@@ -43,7 +43,9 @@ def unpatchify_batch(patches, patch_size, H, W):
         pressure_array: torch.Tensor of shape (batch_size, H, W)
     """
     # Reshape patches to original image shape
-
+    print(f'patches shape: {patches.shape}')
+    print(f'patch_size: {patch_size}')
+    print(f'H: {H}')
 
     fold = nn.Fold(output_size=(H, W), kernel_size=(patch_size, patch_size), stride=(patch_size, patch_size))
     patches = fold(patches).squeeze(1) # remove channel dimension

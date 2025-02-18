@@ -1,0 +1,27 @@
+11:37:53 - INFO: Starting epoch 0:
+  1%|█                                                                                                                                                                     | 1501/239282 [00:23<1:01:27, 64.48it/s, epoch_loss=0.00667, learning_rate=0.0001]
+Traceback (most recent call last):
+  File "/home/reid/projects/blast_waves/blastformer/lucid_train.py", line 150, in <module>
+    launch()
+  File "/home/reid/projects/blast_waves/blastformer/lucid_train.py", line 146, in launch
+    train(args)
+  File "/home/reid/projects/blast_waves/blastformer/lucid_train.py", line 84, in train
+    optimizer.step()
+  File "/home/reid/anaconda3/envs/blast_waves/lib/python3.12/site-packages/torch/optim/lr_scheduler.py", line 137, in wrapper
+    return func.__get__(opt, opt.__class__)(*args, **kwargs)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/reid/anaconda3/envs/blast_waves/lib/python3.12/site-packages/torch/optim/optimizer.py", line 487, in wrapper
+    out = func(*args, **kwargs)
+          ^^^^^^^^^^^^^^^^^^^^^
+  File "/home/reid/anaconda3/envs/blast_waves/lib/python3.12/site-packages/torch/optim/optimizer.py", line 91, in _use_grad
+    ret = func(self, *args, **kwargs)
+          ^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/reid/anaconda3/envs/blast_waves/lib/python3.12/site-packages/torch/optim/adamw.py", line 192, in step
+    self._cuda_graph_capture_health_check()
+  File "/home/reid/anaconda3/envs/blast_waves/lib/python3.12/site-packages/torch/optim/optimizer.py", line 430, in _cuda_graph_capture_health_check
+    capturing = torch.cuda.is_current_stream_capturing()
+                ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/reid/anaconda3/envs/blast_waves/lib/python3.12/site-packages/torch/cuda/graphs.py", line 30, in is_current_stream_capturing
+    return _cuda_isCurrentStreamCapturing()
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+KeyboardInterrupt

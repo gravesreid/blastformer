@@ -1,0 +1,15 @@
+{"time":"2025-02-18T11:34:12.043463484-05:00","level":"INFO","msg":"stream: starting","core version":"0.19.6","symlink path":"/home/reid/projects/blast_waves/blastformer/wandb/run-20250218_113411-hmyt8bdo/logs/debug-core.log"}
+{"time":"2025-02-18T11:34:12.153031275-05:00","level":"INFO","msg":"created new stream","id":"hmyt8bdo"}
+{"time":"2025-02-18T11:34:12.153054135-05:00","level":"INFO","msg":"stream: started","id":"hmyt8bdo"}
+{"time":"2025-02-18T11:34:12.153091791-05:00","level":"INFO","msg":"writer: Do: started","stream_id":"hmyt8bdo"}
+{"time":"2025-02-18T11:34:12.153104423-05:00","level":"INFO","msg":"sender: started","stream_id":"hmyt8bdo"}
+{"time":"2025-02-18T11:34:12.153178172-05:00","level":"INFO","msg":"handler: started","stream_id":"hmyt8bdo"}
+{"time":"2025-02-18T11:34:12.368890153-05:00","level":"INFO","msg":"Starting system monitor"}
+{"time":"2025-02-18T11:34:17.644343599-05:00","level":"INFO","msg":"stream: closing","id":"hmyt8bdo"}
+{"time":"2025-02-18T11:34:17.644355751-05:00","level":"INFO","msg":"Stopping system monitor"}
+{"time":"2025-02-18T11:34:17.644637137-05:00","level":"INFO","msg":"Stopped system monitor"}
+{"time":"2025-02-18T11:34:18.018273627-05:00","level":"INFO","msg":"fileTransfer: Close: file transfer manager closed"}
+{"time":"2025-02-18T11:34:18.198590785-05:00","level":"INFO","msg":"handler: closed","stream_id":"hmyt8bdo"}
+{"time":"2025-02-18T11:34:18.198731689-05:00","level":"INFO","msg":"writer: Close: closed","stream_id":"hmyt8bdo"}
+{"time":"2025-02-18T11:34:18.198900898-05:00","level":"INFO","msg":"sender: closed","stream_id":"hmyt8bdo"}
+{"time":"2025-02-18T11:34:18.198951112-05:00","level":"INFO","msg":"stream: closed","id":"hmyt8bdo"}

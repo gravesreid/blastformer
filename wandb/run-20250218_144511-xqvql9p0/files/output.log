@@ -1,0 +1,4 @@
+02:45:12 - INFO: Starting epoch 0:
+  0%|                                                                                                                                                                                                                               | 0/1870 [00:00<?, ?it/s]/home/reid/anaconda3/envs/blast_waves/lib/python3.12/site-packages/torch/nn/modules/loss.py:128: UserWarning: Using a target size (torch.Size([128, 99, 99])) that is different to the input size (torch.Size([128, 1, 99, 99])). This will likely lead to incorrect results due to broadcasting. Please ensure they have the same size.
+  return F.l1_loss(input, target, reduction=self.reduction)
+  7%|████████████▎                                                                                                                                                               | 134/1870 [00:50<11:07,  2.60it/s, epoch_loss=0.0372, learning_rate=0.0001]

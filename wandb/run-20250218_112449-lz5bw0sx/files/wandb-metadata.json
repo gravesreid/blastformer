@@ -1,0 +1,41 @@
+{
+  "os":  "Linux-5.15.0-131-generic-x86_64-with-glibc2.31",
+  "python":  "CPython 3.12.2",
+  "startedAt":  "2025-02-18T16:24:49.598402Z",
+  "program":  "/home/reid/projects/blast_waves/blastformer/lucid_train.py",
+  "codePath":  "lucid_train.py",
+  "git":  {
+    "remote":  "https://github.com/gravesreid/blastformer.git",
+    "commit":  "5d190955433f25fd1d3b339f1e294cd2d9b3bbc9"
+  },
+  "email":  "gravesreid@gmail.com",
+  "root":  "/home/reid/projects/blast_waves/blastformer",
+  "host":  "mail-18",
+  "executable":  "/home/reid/anaconda3/envs/blast_waves/bin/python",
+  "codePathLocal":  "lucid_train.py",
+  "cpu_count":  6,
+  "cpu_count_logical":  12,
+  "gpu":  "NVIDIA GeForce RTX 2080 Ti",
+  "gpu_count":  1,
+  "disk":  {
+    "/":  {
+      "total":  "982820896768",
+      "used":  "765074579456"
+    }
+  },
+  "memory":  {
+    "total":  "16596672512"
+  },
+  "cpu":  {
+    "count":  6,
+    "countLogical":  12
+  },
+  "gpu_nvidia":  [
+    {
+      "name":  "NVIDIA GeForce RTX 2080 Ti",
+      "memoryTotal":  "11531190272",
+      "architecture":  "Turing"
+    }
+  ],
+  "cudaVersion":  "11.4"
+}

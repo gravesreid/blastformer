@@ -1,0 +1,53 @@
+02:43:23 - INFO: Starting epoch 0:
+  0%|                                                                                                                                                                                                                               | 0/1870 [00:00<?, ?it/s]
+output shape: torch.Size([128, 126, 99])
+Traceback (most recent call last):
+  File "/home/reid/projects/blast_waves/blastformer/lucid_train.py", line 151, in <module>
+    launch()
+  File "/home/reid/projects/blast_waves/blastformer/lucid_train.py", line 147, in launch
+    train(args)
+  File "/home/reid/projects/blast_waves/blastformer/lucid_train.py", line 76, in train
+    outputs = model(current_pressure, charge_data, wall_locations, current_time)
+              ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/reid/anaconda3/envs/blast_waves/lib/python3.12/site-packages/torch/nn/modules/module.py", line 1736, in _wrapped_call_impl
+    return self._call_impl(*args, **kwargs)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/reid/anaconda3/envs/blast_waves/lib/python3.12/site-packages/torch/nn/modules/module.py", line 1747, in _call_impl
+    return forward_call(*args, **kwargs)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/reid/projects/blast_waves/blastformer/blastformer_transformer.py", line 105, in forward
+    reconstructed_pressure = self.unpatch_proj(output)
+                             ^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/reid/anaconda3/envs/blast_waves/lib/python3.12/site-packages/torch/nn/modules/module.py", line 1736, in _wrapped_call_impl
+    return self._call_impl(*args, **kwargs)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/reid/anaconda3/envs/blast_waves/lib/python3.12/site-packages/torch/nn/modules/module.py", line 1747, in _call_impl
+    return forward_call(*args, **kwargs)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/reid/projects/blast_waves/blastformer/blastformer_transformer.py", line 32, in forward
+    return self.proj(x)
+           ^^^^^^^^^^^^
+  File "/home/reid/anaconda3/envs/blast_waves/lib/python3.12/site-packages/torch/nn/modules/module.py", line 1736, in _wrapped_call_impl
+    return self._call_impl(*args, **kwargs)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/reid/anaconda3/envs/blast_waves/lib/python3.12/site-packages/torch/nn/modules/module.py", line 1747, in _call_impl
+    return forward_call(*args, **kwargs)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/reid/anaconda3/envs/blast_waves/lib/python3.12/site-packages/torch/nn/modules/container.py", line 250, in forward
+    input = module(input)
+            ^^^^^^^^^^^^^
+  File "/home/reid/anaconda3/envs/blast_waves/lib/python3.12/site-packages/torch/nn/modules/module.py", line 1736, in _wrapped_call_impl
+    return self._call_impl(*args, **kwargs)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/reid/anaconda3/envs/blast_waves/lib/python3.12/site-packages/torch/nn/modules/module.py", line 1747, in _call_impl
+    return forward_call(*args, **kwargs)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/reid/anaconda3/envs/blast_waves/lib/python3.12/site-packages/einops/layers/torch.py", line 15, in forward
+    return apply_for_scriptable_torch(recipe, input, reduction_type="rearrange", axes_dims=self._axes_lengths)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/reid/anaconda3/envs/blast_waves/lib/python3.12/site-packages/einops/_torch_specific.py", line 88, in apply_for_scriptable_torch
+    ) = _reconstruct_from_shape_uncached(recipe, backend.shape(tensor), axes_dims=axes_dims)
+        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/reid/anaconda3/envs/blast_waves/lib/python3.12/site-packages/einops/einops.py", line 184, in _reconstruct_from_shape_uncached
+    raise EinopsError(f"Shape mismatch, {length} != {known_product}")
+einops.EinopsError: Shape mismatch, 126 != 121

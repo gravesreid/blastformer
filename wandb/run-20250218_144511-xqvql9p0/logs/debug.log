@@ -1,0 +1,28 @@
+2025-02-18 14:45:11,916 INFO    MainThread:3051399 [wandb_setup.py:_flush():68] Current SDK version is 0.19.6
+2025-02-18 14:45:11,917 INFO    MainThread:3051399 [wandb_setup.py:_flush():68] Configure stats pid to 3051399
+2025-02-18 14:45:11,917 INFO    MainThread:3051399 [wandb_setup.py:_flush():68] Loading settings from /home/reid/.config/wandb/settings
+2025-02-18 14:45:11,917 INFO    MainThread:3051399 [wandb_setup.py:_flush():68] Loading settings from /home/reid/projects/blast_waves/blastformer/wandb/settings
+2025-02-18 14:45:11,917 INFO    MainThread:3051399 [wandb_setup.py:_flush():68] Loading settings from environment variables
+2025-02-18 14:45:11,917 INFO    MainThread:3051399 [wandb_init.py:setup_run_log_directory():637] Logging user logs to /home/reid/projects/blast_waves/blastformer/wandb/run-20250218_144511-xqvql9p0/logs/debug.log
+2025-02-18 14:45:11,917 INFO    MainThread:3051399 [wandb_init.py:setup_run_log_directory():638] Logging internal logs to /home/reid/projects/blast_waves/blastformer/wandb/run-20250218_144511-xqvql9p0/logs/debug-internal.log
+2025-02-18 14:45:11,917 INFO    MainThread:3051399 [wandb_init.py:init():756] calling init triggers
+2025-02-18 14:45:11,918 INFO    MainThread:3051399 [wandb_init.py:init():761] wandb.init called with sweep_config: {}
+config: {'run_name': 'lucid_blastformer_0', 'patience': 10, 'epochs': 10, 'batch_size': 128, 'patch_size': 9, 'hidden_dim': 32, 'num_layers': 4, 'seq_len': 302, 'dataset_path': '/home/reid/projects/blast_waves/hdf5_dataset', 'device': 'cuda', 'lr': 0.0001, '_wandb': {}}
+2025-02-18 14:45:11,918 INFO    MainThread:3051399 [wandb_init.py:init():789] starting backend
+2025-02-18 14:45:12,130 INFO    MainThread:3051399 [wandb_init.py:init():793] sending inform_init request
+2025-02-18 14:45:12,137 INFO    MainThread:3051399 [backend.py:_multiprocessing_setup():97] multiprocessing start_methods=fork,spawn,forkserver, using: spawn
+2025-02-18 14:45:12,137 INFO    MainThread:3051399 [wandb_init.py:init():808] backend started and connected
+2025-02-18 14:45:12,141 INFO    MainThread:3051399 [wandb_init.py:init():901] updated telemetry
+2025-02-18 14:45:12,154 INFO    MainThread:3051399 [wandb_init.py:init():936] communicating run to backend with 90.0 second timeout
+2025-02-18 14:45:12,451 INFO    MainThread:3051399 [wandb_init.py:init():994] starting run threads in backend
+2025-02-18 14:45:12,511 INFO    MainThread:3051399 [wandb_run.py:_console_start():2385] atexit reg
+2025-02-18 14:45:12,511 INFO    MainThread:3051399 [wandb_run.py:_redirect():2235] redirect: wrap_raw
+2025-02-18 14:45:12,511 INFO    MainThread:3051399 [wandb_run.py:_redirect():2300] Wrapping output streams.
+2025-02-18 14:45:12,511 INFO    MainThread:3051399 [wandb_run.py:_redirect():2325] Redirects installed.
+2025-02-18 14:45:12,513 INFO    MainThread:3051399 [wandb_init.py:init():1036] run started, returning control to user process
+2025-02-18 14:45:12,513 INFO    MainThread:3051399 [wandb_config.py:__setitem__():154] config set epochs = 10 - <bound method Run._config_callback of <wandb.sdk.wandb_run.Run object at 0x7fc58dd8a5d0>>
+2025-02-18 14:45:12,513 INFO    MainThread:3051399 [wandb_run.py:_config_callback():1253] config_cb epochs 10 None
+2025-02-18 14:45:12,513 INFO    MainThread:3051399 [wandb_config.py:__setitem__():154] config set batch_size = 128 - <bound method Run._config_callback of <wandb.sdk.wandb_run.Run object at 0x7fc58dd8a5d0>>
+2025-02-18 14:45:12,513 INFO    MainThread:3051399 [wandb_run.py:_config_callback():1253] config_cb batch_size 128 None
+2025-02-18 14:45:12,514 INFO    MainThread:3051399 [wandb_config.py:__setitem__():154] config set lr = 0.0001 - <bound method Run._config_callback of <wandb.sdk.wandb_run.Run object at 0x7fc58dd8a5d0>>
+2025-02-18 14:45:12,514 INFO    MainThread:3051399 [wandb_run.py:_config_callback():1253] config_cb lr 0.0001 None

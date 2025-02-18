@@ -1,0 +1,15 @@
+{"time":"2025-02-18T14:36:04.539581864-05:00","level":"INFO","msg":"stream: starting","core version":"0.19.6","symlink path":"/home/reid/projects/blast_waves/blastformer/wandb/run-20250218_143604-dh6uye32/logs/debug-core.log"}
+{"time":"2025-02-18T14:36:04.647748366-05:00","level":"INFO","msg":"created new stream","id":"dh6uye32"}
+{"time":"2025-02-18T14:36:04.647851308-05:00","level":"INFO","msg":"stream: started","id":"dh6uye32"}
+{"time":"2025-02-18T14:36:04.647894469-05:00","level":"INFO","msg":"writer: Do: started","stream_id":"dh6uye32"}
+{"time":"2025-02-18T14:36:04.647971245-05:00","level":"INFO","msg":"handler: started","stream_id":"dh6uye32"}
+{"time":"2025-02-18T14:36:04.648037901-05:00","level":"INFO","msg":"sender: started","stream_id":"dh6uye32"}
+{"time":"2025-02-18T14:36:04.876397444-05:00","level":"INFO","msg":"Starting system monitor"}
+{"time":"2025-02-18T14:36:05.771000488-05:00","level":"INFO","msg":"stream: closing","id":"dh6uye32"}
+{"time":"2025-02-18T14:36:05.771029067-05:00","level":"INFO","msg":"Stopping system monitor"}
+{"time":"2025-02-18T14:36:05.77148911-05:00","level":"INFO","msg":"Stopped system monitor"}
+{"time":"2025-02-18T14:36:06.130311479-05:00","level":"INFO","msg":"fileTransfer: Close: file transfer manager closed"}
+{"time":"2025-02-18T14:36:06.506714393-05:00","level":"INFO","msg":"handler: closed","stream_id":"dh6uye32"}
+{"time":"2025-02-18T14:36:06.506806863-05:00","level":"INFO","msg":"sender: closed","stream_id":"dh6uye32"}
+{"time":"2025-02-18T14:36:06.50677648-05:00","level":"INFO","msg":"writer: Close: closed","stream_id":"dh6uye32"}
+{"time":"2025-02-18T14:36:06.506952172-05:00","level":"INFO","msg":"stream: closed","id":"dh6uye32"}

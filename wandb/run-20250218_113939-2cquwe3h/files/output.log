@@ -1,0 +1,32 @@
+11:39:40 - INFO: Starting epoch 0:
+100%|██████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████| 1870/1870 [13:01<00:00,  2.39it/s, epoch_loss=0.00485, learning_rate=0.0001]
+/home/reid/anaconda3/envs/blast_waves/lib/python3.12/site-packages/torch/optim/lr_scheduler.py:240: UserWarning: The epoch parameter in `scheduler.step()` was not necessary and is being deprecated where possible. Please use `scheduler.step()` to step the scheduler. During the deprecation, if epoch is different from None, the closed form is used instead of the new chainable form, where available. Please open an issue if you are unable to replicate your use case: https://github.com/pytorch/pytorch/issues/new/choose.
+  warnings.warn(EPOCH_DEPRECATION_WARNING, UserWarning)
+11:52:41 - INFO: Epoch 0 completed. Learning rate: 9.999681814499924e-05, epochs no improvement: 0, best loss: 0.03591059644365394
+11:52:41 - INFO: Starting epoch 1:
+100%|██████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████| 1870/1870 [12:29<00:00,  2.50it/s, epoch_loss=0.00138, learning_rate=0.0001]
+12:05:11 - INFO: Epoch 1 completed. Learning rate: 9.999997619855834e-05, epochs no improvement: 0, best loss: 0.003105859258361559
+12:05:11 - INFO: Starting epoch 2:
+100%|██████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████| 1870/1870 [12:26<00:00,  2.51it/s, epoch_loss=0.00879, learning_rate=0.0001]
+12:17:37 - INFO: Epoch 2 completed. Learning rate: 9.999998749220787e-05, epochs no improvement: 0, best loss: 0.0022514922663888193
+12:17:37 - INFO: Starting epoch 3:
+100%|█████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████| 1870/1870 [12:23<00:00,  2.52it/s, epoch_loss=0.000856, learning_rate=0.0001]
+12:30:00 - INFO: Epoch 3 completed. Learning rate: 9.999999099687698e-05, epochs no improvement: 0, best loss: 0.0019101906798152442
+12:30:00 - INFO: Starting epoch 4:
+100%|██████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████| 1870/1870 [12:39<00:00,  2.46it/s, epoch_loss=0.00358, learning_rate=0.0001]
+12:42:40 - INFO: Epoch 4 completed. Learning rate: 9.999999254891463e-05, epochs no improvement: 0, best loss: 0.0017377604069599114
+12:42:40 - INFO: Starting epoch 5:
+100%|██████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████| 1870/1870 [12:21<00:00,  2.52it/s, epoch_loss=0.00158, learning_rate=0.0001]
+12:55:01 - INFO: Epoch 5 completed. Learning rate: 9.99999930492216e-05, epochs no improvement: 0, best loss: 0.001678405327406179
+12:55:01 - INFO: Starting epoch 6:
+100%|██████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████| 1870/1870 [12:56<00:00,  2.41it/s, epoch_loss=0.00337, learning_rate=0.0001]
+01:07:58 - INFO: Epoch 6 completed. Learning rate: 9.999999325055596e-05, epochs no improvement: 0, best loss: 0.0016539185894665653
+01:07:58 - INFO: Starting epoch 7:
+100%|██████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████| 1870/1870 [12:24<00:00,  2.51it/s, epoch_loss=0.00401, learning_rate=0.0001]
+01:20:22 - INFO: Epoch 7 completed. Learning rate: 9.99999935027996e-05, epochs no improvement: 0, best loss: 0.0016227187662270857
+01:20:22 - INFO: Starting epoch 8:
+100%|█████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████| 1870/1870 [12:21<00:00,  2.52it/s, epoch_loss=0.000694, learning_rate=0.0001]
+01:32:44 - INFO: Epoch 8 completed. Learning rate: 9.999999377012851e-05, epochs no improvement: 0, best loss: 0.0015889845385071747
+01:32:44 - INFO: Starting epoch 9:
+100%|███████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████| 1870/1870 [12:37<00:00,  2.47it/s, epoch_loss=0.0031, learning_rate=0.0001]
+01:45:21 - INFO: Epoch 9 completed. Learning rate: 9.999999393704847e-05, epochs no improvement: 0, best loss: 0.0015675527902125795
