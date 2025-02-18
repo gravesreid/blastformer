@@ -1,2 +1,6 @@
 lightning_logs/
 *.pth
+wandb/
+runs/
+results/
+models/
