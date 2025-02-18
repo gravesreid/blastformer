@@ -4,6 +4,7 @@ import math
 import numpy as np
 import matplotlib.pyplot as plt
 import matplotlib.patches as patches
+import os
 
     
 def patchify_batch(pressure_array, patch_size):
@@ -179,4 +180,8 @@ def plot_reconstruction_all(data_sample, reconstructed_pressures, index=0, save_
         plt.close(fig)
 
 
-
+def setup_logging(run_name):
+    os.makedirs("models", exist_ok=True)
+    os.makedirs("results", exist_ok=True)
+    os.makedirs(os.path.join("models", run_name), exist_ok=True)
+    os.makedirs(os.path.join("results", run_name), exist_ok=True)

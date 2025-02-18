@@ -31,11 +31,11 @@ class BlastDataset(Dataset):
 
         self.file_list.sort(key=self._extract_simulation_and_timestep)
 
-
-        if os.path.exists(self.normalization_file):
-            self.mean, self.std = self._load_normalization()
-        else:
-            self.mean, self.std = self._compute_normalization()
+        if normalize:
+            if os.path.exists(self.normalization_file):
+                self.mean, self.std = self._load_normalization()
+            else:
+                self.mean, self.std = self._compute_normalization()
 
     def _extract_simulation_and_timestep(self, filename):
         """Extracts the simulation and timestep number from the filename for sorting."""
