@@ -49,7 +49,7 @@ class CFDFeatureEmbedder(nn.Module):
         return self.projection(x)
 
 class BlastFormer(nn.Module):
-    def __init__(self, input_dim, hidden_dim, num_layers, output_dim, seq_len, patch_size):
+    def __init__(self, input_dim, hidden_dim, num_layers, output_dim, patch_size):
         super().__init__()
         # Initilize feature embedding layers
         self.wall_embedder = CFDFeatureEmbedder(6, hidden_dim)
@@ -58,7 +58,7 @@ class BlastFormer(nn.Module):
         
 
 
-        self.seq_len = seq_len
+        #self.seq_len = seq_len
         self.patch_size = patch_size
 
         # Input projection to match transformer hidden dimension

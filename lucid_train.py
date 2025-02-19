@@ -23,8 +23,8 @@ def train(args):
     setup_logging(args.run_name)
     device = args.device
 
-    dataset = BlastDataset(args.dataset_path, split="test", normalize=True)
-    dataloader = DataLoader(dataset, batch_size=args.batch_size, shuffle=True)
+    dataset = BlastDataset(args.dataset_path, split="train", normalize=True)
+    dataloader = DataLoader(dataset, batch_size=args.batch_size, shuffle=True, num_workers=min(16, os.cpu_count() - 1))
     l = len(dataloader) # used for logging
 
     patch_size = args.patch_size
@@ -34,7 +34,7 @@ def train(args):
     output_dim = 99
     input_dim = (99**2)//(patch_size**2)
 
-    model = BlastFormer(input_dim, hidden_dim, num_layers, output_dim, seq_len, patch_size).to(device)
+    model = BlastFormer(input_dim, hidden_dim, num_layers, output_dim, patch_size).to(device)
     patch_embedder = PatchEmbed(1, output_dim, patch_size).to(device)
     unpatcher = UnpatchEmbed(1, output_dim, patch_size, 99**2).to(device)
 
@@ -67,7 +67,6 @@ def train(args):
             # Move inputs and targets to device
             current_pressure = batch["source_pressure"].to(device) # shape: (batch_size, 99,99)
             next_pressures = batch["target_pressure"].to(device)
-            next_patches = patchify_batch(next_pressures, patch_size)
             charge_data = batch["source_charge_data"].to(device) # shape: (batch_size, time, 7)
             wall_locations = batch["source_wall_locations"].to(device)
             current_time = batch["source_time"].to(device)
@@ -75,7 +74,7 @@ def train(args):
 
             outputs = model(current_pressure, charge_data, wall_locations, current_time)
             predicted_pressure = outputs.squeeze(1)
-            loss = l1(predicted_pressure, current_pressure)
+            loss = l1(predicted_pressure, next_pressures)
 
 
             optimizer.zero_grad()
@@ -133,9 +132,9 @@ def launch():
     parser.add_argument('--run_name', type=str, default="lucid_blastformer_0")
     parser.add_argument('--patience', type=int, default=10)
     parser.add_argument('--epochs', type=int, default=10)
-    parser.add_argument('--batch_size', type=int, default=128)
-    parser.add_argument('--patch_size', type=int, default=9)
-    parser.add_argument('--hidden_dim', type=int, default=32)
+    parser.add_argument('--batch_size', type=int, default=64)
+    parser.add_argument('--patch_size', type=int, default=3)
+    parser.add_argument('--hidden_dim', type=int, default=256)
     parser.add_argument('--num_layers', type=int, default=4)
     parser.add_argument('--seq_len', type=int, default=302)
     parser.add_argument('--dataset_path', type=str, default="/home/reid/projects/blast_waves/hdf5_dataset")
