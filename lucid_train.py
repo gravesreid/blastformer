@@ -132,7 +132,7 @@ def train(args):
                 "Epoch": epoch
             })
             logger.add_scalar("validation_loss", epoch_val_loss, global_step=epoch)
-            logger.info(f"Epoch {epoch} - Training Loss: {epoch_train_loss}, Validation Loss: {epoch_val_loss}")
+            logging.info(f"Epoch {epoch} - Training Loss: {epoch_train_loss}, Validation Loss: {epoch_val_loss}")
 
         # visualize validation predictions
         if vis_inputs is not None:
@@ -176,7 +176,7 @@ def launch():
     parser.add_argument('--run_name', type=str, default="lucid_blastformer_1")
     parser.add_argument('--patience', type=int, default=10)
     parser.add_argument('--epochs', type=int, default=10)
-    parser.add_argument('--batch_size', type=int, default=96)
+    parser.add_argument('--batch_size', type=int, default=120)
     parser.add_argument('--patch_size', type=int, default=3)
     parser.add_argument('--hidden_dim', type=int, default=256)
     parser.add_argument('--num_layers', type=int, default=4)
