@@ -12,7 +12,7 @@ class BlastDataset(Dataset):
     def __init__(self, root_dir, normalization_file = "normalization_val.json", normalize=True, split="train"):
         """
         Args:
-            root_dir (str): Root directory containing 'train', 'test', 'validate' HDF5 subdirectories.
+            root_dir (str): Root directory containing 'train', 'test', 'val' HDF5 subdirectories.
             k (int): Number of timesteps per sample.
             normalize (bool): Whether to normalize the pressure data.
         """

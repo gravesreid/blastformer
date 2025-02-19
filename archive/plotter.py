@@ -1,7 +1,7 @@
 import matplotlib.pyplot as plt
 import numpy as np
 import matplotlib.patches as patches
-from dataset import *
+from archive.dataset import *
 from utils import unpatchify, patchify, custom_collate
 
 def plot_simulation_sample(data_sample):

@@ -5,6 +5,8 @@ import numpy as np
 import matplotlib.pyplot as plt
 import matplotlib.patches as patches
 import os
+import logging
+import wandb
 
     
 def patchify_batch(pressure_array, patch_size):
@@ -87,6 +89,31 @@ def scaledlp_loss(input: torch.Tensor, target: torch.Tensor, p: int = 2, reducti
         return val
     else:
         raise NotImplementedError(reduction)
+
+
+
+def visualize_results(input_pressure, target_pressure, predicted_pressure, run_name, epoch):
+    """Visualizes and saves pressure field comparisons for validation."""
+    num_samples = min(3, input_pressure.shape[0])
+    fig, axes = plt.subplots(num_samples, 3, figsize=(12, 4 * num_samples))
+
+    for i in range(num_samples):
+        axes[i, 0].imshow(input_pressure[i].cpu().numpy(), cmap="jet")
+        axes[i, 0].set_title("Input Pressure")
+
+        axes[i, 1].imshow(target_pressure[i].cpu().numpy(), cmap="jet")
+        axes[i, 1].set_title("Target Pressure")
+
+        axes[i, 2].imshow(predicted_pressure[i].cpu().numpy(), cmap="jet")
+        axes[i, 2].set_title("Predicted Pressure")
+
+    plt.tight_layout()
+    vis_path = os.path.join("results", run_name, f"validation_epoch_{epoch}.jpg")
+    os.makedirs(os.path.dirname(vis_path), exist_ok=True)
+    plt.savefig(vis_path)
+    wandb.log({f"Validation Predictions Epoch {epoch}": wandb.Image(vis_path)})
+    logging.info(f"Saved validation visualization to {vis_path}")
+    plt.close(fig)
 
 
 def plot_reconstruction_all(data_sample, reconstructed_pressures, index=0, save_dir=None, show=False):
