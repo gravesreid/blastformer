@@ -28,7 +28,7 @@ def train(args):
     l = len(training_dataloader) # used for logging
 
     validation_dataset = BlastDataset(args.dataset_path, split="val", normalize=True)
-    validation_dataloader = DataLoader(validation_dataset, batch_size=args.batch_size, shuffle=False, num_workers=min(16, os.cpu_count() - 1))
+    validation_dataloader = DataLoader(validation_dataset, batch_size=args.batch_size, shuffle=True, num_workers=min(16, os.cpu_count() - 1))
     if len(validation_dataloader) == 0:
         logging.error("Validation dataloader is empty. Check the dataset path.")
         return
@@ -80,6 +80,7 @@ def train(args):
             outputs = model(current_pressure, charge_data, wall_locations, current_time)
             predicted_pressure = outputs.squeeze(1)
             loss = l1(predicted_pressure, next_pressures)
+            scaled_loss = scaledlp_loss(predicted_pressure, next_pressures, p=2, reduction="mean")
 
 
             optimizer.zero_grad()
@@ -89,9 +90,10 @@ def train(args):
             epoch_train_loss += loss.item()
 
             current_lr = optimizer.param_groups[0]['lr']
-            pbar.set_postfix(epoch_loss=loss.item(), learning_rate=current_lr)
+            pbar.set_postfix(epoch_loss=loss.item(), scaled_loss=scaled_loss.item(), learning_rate=current_lr)
             wandb.log({
                 "Batch Loss": loss.item(),
+                "scaled_loss": scaled_loss.item(),
                 "Learning Rate": current_lr,
                 "Epoch": epoch
             })
@@ -173,12 +175,12 @@ def train(args):
 def launch():
     import argparse
     parser = argparse.ArgumentParser()
-    parser.add_argument('--run_name', type=str, default="lucid_blastformer_1")
+    parser.add_argument('--run_name', type=str, default="lucid_blastformer_Home-128_hidden_dim")
     parser.add_argument('--patience', type=int, default=10)
     parser.add_argument('--epochs', type=int, default=10)
-    parser.add_argument('--batch_size', type=int, default=120)
+    parser.add_argument('--batch_size', type=int, default=200)
     parser.add_argument('--patch_size', type=int, default=3)
-    parser.add_argument('--hidden_dim', type=int, default=256)
+    parser.add_argument('--hidden_dim', type=int, default=128)
     parser.add_argument('--num_layers', type=int, default=4)
     parser.add_argument('--seq_len', type=int, default=302)
     parser.add_argument('--dataset_path', type=str, default="/home/reid/projects/blast_waves/hdf5_dataset")

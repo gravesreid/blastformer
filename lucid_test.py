@@ -116,7 +116,7 @@ def visualize_results(input_pressure, target_pressure, predicted_pressure, run_n
 def launch():
     import argparse
     parser = argparse.ArgumentParser()
-    parser.add_argument('--run_name', type=str, default="lucid_blastformer_0")
+    parser.add_argument('--run_name', type=str, default="lucid_blastformer_Home-128_hidden_dim")
     parser.add_argument('--batch_size', type=int, default=64)
     parser.add_argument('--patch_size', type=int, default=3)
     parser.add_argument('--hidden_dim', type=int, default=256)

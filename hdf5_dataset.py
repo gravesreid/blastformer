@@ -51,10 +51,10 @@ class BlastDataset(Dataset):
         total_sq_sum = 0.0
         num_elements = 0
 
-        for sim_path in self.simulation_files:
+        for sim_path in self.file_list:
             with h5py.File(sim_path, "r") as f:
                 for timestep in f.keys():
-                    pressure = f[timestep]["pressure"][:]
+                    pressure = f[timestep]["source_pressure"][:]
                     total_sum += pressure.sum()
                     total_sq_sum += (pressure ** 2).sum()
                     num_elements += pressure.size
@@ -62,6 +62,9 @@ class BlastDataset(Dataset):
         mean = total_sum / num_elements
         std = ((total_sq_sum / num_elements) - (mean ** 2)) ** 0.5
         print(f"Computed Normalization -> Mean: {mean:.6f}, Std: {std:.6f}")
+        with open(self.normalization_file, 'w') as f:
+            json.dump({"mean": float(mean), "std": float(std)}, f)
+        print(f"Saved normalization parameters to {self.normalization_file}")
         return mean, std
     
     def _load_normalization(self):
