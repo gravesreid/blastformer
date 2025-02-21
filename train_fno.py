@@ -14,10 +14,10 @@ import math
 import matplotlib.pyplot as plt
 from utils import *
 from hdf5_dataset import *
-from blastformer_transformer import *
+# Import the new model. Adjust the import path as needed.
+from fno2d_cond import FNO2d_cond
 
 logging.basicConfig(format="%(asctime)s - %(levelname)s: %(message)s", level=logging.INFO, datefmt="%I:%M:%S")
-
 
 def train(args):
     setup_logging(args.run_name)
@@ -25,7 +25,7 @@ def train(args):
 
     training_dataset = BlastDataset(args.dataset_path, split="train", normalize=True)
     training_dataloader = DataLoader(training_dataset, batch_size=args.batch_size, shuffle=True, num_workers=min(16, os.cpu_count() - 1))
-    l = len(training_dataloader) # used for logging
+    l = len(training_dataloader)
 
     validation_dataset = BlastDataset(args.dataset_path, split="val", normalize=True)
     validation_dataloader = DataLoader(validation_dataset, batch_size=args.batch_size, shuffle=True, num_workers=min(16, os.cpu_count() - 1))
@@ -33,14 +33,19 @@ def train(args):
         logging.error("Validation dataloader is empty. Check the dataset path.")
         return
 
-    patch_size = args.patch_size
-    hidden_dim = args.hidden_dim
-    num_layers = args.num_layers
-    seq_len = args.seq_len
-    output_dim = 99
-    input_dim = (99**2)//(patch_size**2)
-
-    model = BlastFormer(input_dim, hidden_dim, num_layers, output_dim, patch_size).to(device)
+    # Instantiate the new FNO2d_cond model.
+    # For this model, we assume that:
+    # - the pressure field is 2D (shape: [batch, 99, 99]) and we unsqueeze to get a channel dimension,
+    # - we use charge_data as the conditioning signal (averaged over its time dimension to yield shape [batch, cond_channels]),
+    # - time_window is set to 1 (since the input pressure is a single channel).
+    model = FNO2d_cond(
+        time_window=args.time_window, 
+        modes1=args.modes1, 
+        modes2=args.modes2, 
+        width=args.width, 
+        cond_channels=args.cond_channels, 
+        num_layers=args.num_layers
+    ).to(device)
 
     optimizer = optim.AdamW(model.parameters(), lr=args.lr)
     scheduler = CosineAnnealingLR(optimizer, T_max=args.epochs, eta_min=0)
@@ -68,20 +73,24 @@ def train(args):
         pbar = tqdm(training_dataloader)
         epoch_train_loss = 0
 
+        model.train()
         for i, batch in enumerate(pbar):
-            # Move inputs and targets to device
-            current_pressure = batch["source_pressure"].to(device) # shape: (batch_size, 99,99)
+            # Adjust input shapes for the new model:
+            # current_pressure: originally (batch, 99, 99) -> unsqueeze to (batch, 1, 99, 99)
+            current_pressure = batch["source_pressure"].to(device).unsqueeze(1)
+            # next_pressures remains (batch, 99, 99)
             next_pressures = batch["target_pressure"].to(device)
-            charge_data = batch["source_charge_data"].to(device) # shape: (batch_size, time, 7)
-            wall_locations = batch["source_wall_locations"].to(device)
-            current_time = batch["source_time"].to(device)
-            next_time = batch["target_time"].to(device)
+            # Use charge_data as the conditioning input.
+            # Assuming charge_data is of shape (batch, time, 7), we take a mean over time.
+            charge_data = batch["source_charge_data"].to(device)
+            cond_emb = charge_data.mean(dim=1)  # resulting shape: (batch, 7)
+            # (Optionally, you could also incorporate wall_locations or source_time.)
 
-            outputs = model(current_pressure, charge_data, wall_locations, current_time)
+            outputs = model(current_pressure, cond_emb)
+            # outputs shape: (batch, time_window, 99, 99). Since time_window==1, squeeze the channel dimension.
             predicted_pressure = outputs.squeeze(1)
             loss = l1(predicted_pressure, next_pressures)
             scaled_loss = scaledlp_loss(predicted_pressure, next_pressures, p=2, reduction="mean")
-
 
             optimizer.zero_grad()
             loss.backward()
@@ -111,13 +120,13 @@ def train(args):
         vis_inputs, vis_targets, vis_predictions = None, None, None
         with torch.no_grad():
             for j, val_batch in enumerate(validation_dataloader):
-                val_current_pressure = val_batch["source_pressure"].to(device)
+                val_current_pressure = val_batch["source_pressure"].to(device).unsqueeze(1)
                 val_next_pressures = val_batch["target_pressure"].to(device)
                 val_charge_data = val_batch["source_charge_data"].to(device)
-                val_wall_locations = val_batch["source_wall_locations"].to(device)
-                val_current_time = val_batch["source_time"].to(device)
+                # Use the same conditioning as training (averaging over time)
+                val_cond_emb = val_charge_data.mean(dim=1)
 
-                val_outputs = model(val_current_pressure, val_charge_data, val_wall_locations, val_current_time)
+                val_outputs = model(val_current_pressure, val_cond_emb)
                 val_predicted_pressure = val_outputs.squeeze(1)
                 val_loss = l1(val_predicted_pressure, val_next_pressures)
                 eval_model_loss += val_loss.item()
@@ -138,7 +147,7 @@ def train(args):
 
         # visualize validation predictions
         if vis_inputs is not None:
-            visualize_results(vis_inputs, vis_targets, vis_predictions, args.run_name, epoch)
+            visualize_results(vis_inputs.squeeze(1), vis_targets, vis_predictions, args.run_name, epoch)
 
         # Early stopping
         if epoch_val_loss < best_loss:
@@ -155,7 +164,6 @@ def train(args):
         current_lr = optimizer.param_groups[0]['lr']
         logger.add_scalar("learning_rate", current_lr, global_step=epoch)
         logging.info(f"Epoch {epoch} completed. Learning rate: {current_lr}, epochs no improvement: {epochs_no_improve}, best loss: {best_loss}")
-
 
     # Save the loss curves (training and validation)
     plt.figure()
@@ -175,14 +183,17 @@ def train(args):
 def launch():
     import argparse
     parser = argparse.ArgumentParser()
-    parser.add_argument('--run_name', type=str, default="lucid_blastformer_lab-512_hidden_dim")
+    parser.add_argument('--run_name', type=str, default="fno2d_cond_run")
     parser.add_argument('--patience', type=int, default=10)
     parser.add_argument('--epochs', type=int, default=10)
     parser.add_argument('--batch_size', type=int, default=48)
-    parser.add_argument('--patch_size', type=int, default=3)
-    parser.add_argument('--hidden_dim', type=int, default=512)
+    # New model-specific arguments:
+    parser.add_argument('--time_window', type=int, default=1, help="Number of channels for pressure input")
+    parser.add_argument('--modes1', type=int, default=6)
+    parser.add_argument('--modes2', type=int, default=6)
+    parser.add_argument('--width', type=int, default=24)
+    parser.add_argument('--cond_channels', type=int, default=7, help="Dimension of conditioning embedding (matches charge_data features)")
     parser.add_argument('--num_layers', type=int, default=4)
-    parser.add_argument('--seq_len', type=int, default=302)
     parser.add_argument('--dataset_path', type=str, default="/home/reid/projects/blast_waves/hdf5_dataset")
     parser.add_argument('--device', type=str, default="cuda")
     parser.add_argument('--lr', type=float, default=1e-4)
