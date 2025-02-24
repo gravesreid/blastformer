@@ -15,7 +15,7 @@ import matplotlib.pyplot as plt
 from utils import *
 from hdf5_dataset import *
 # Import the new model. Adjust the import path as needed.
-from fno2d_cond import FNO2d_cond
+from fno import FNO2d_cond
 
 logging.basicConfig(format="%(asctime)s - %(levelname)s: %(message)s", level=logging.INFO, datefmt="%I:%M:%S")
 
@@ -81,12 +81,13 @@ def train(args):
             # next_pressures remains (batch, 99, 99)
             next_pressures = batch["target_pressure"].to(device)
             # Use charge_data as the conditioning input.
-            # Assuming charge_data is of shape (batch, time, 7), we take a mean over time.
             charge_data = batch["source_charge_data"].to(device)
-            cond_emb = charge_data.mean(dim=1)  # resulting shape: (batch, 7)
-            # (Optionally, you could also incorporate wall_locations or source_time.)
-
-            outputs = model(current_pressure, cond_emb)
+            time_data = batch["source_time"].to(device)
+            wall_data = batch["source_wall_locations"].to(device)
+            # reshape wall data to match the charge data shape- initially shape [batch,3,6], needs to be shape [batch, 18]
+            wall_data = wall_data.reshape(wall_data.shape[0], -1)
+            condititoning = torch.cat([charge_data, time_data, wall_data], dim=1)
+            outputs = model(current_pressure, condititoning)
             # outputs shape: (batch, time_window, 99, 99). Since time_window==1, squeeze the channel dimension.
             predicted_pressure = outputs.squeeze(1)
             loss = l1(predicted_pressure, next_pressures)
@@ -124,8 +125,10 @@ def train(args):
                 val_next_pressures = val_batch["target_pressure"].to(device)
                 val_charge_data = val_batch["source_charge_data"].to(device)
                 # Use the same conditioning as training (averaging over time)
-                val_cond_emb = val_charge_data.mean(dim=1)
-
+                val_time_data = val_batch["source_time"].to(device)
+                val_wall_data = val_batch["source_wall_locations"].to(device)
+                val_wall_data = val_wall_data.reshape(val_wall_data.shape[0], -1)
+                val_cond_emb = torch.cat([val_charge_data, val_time_data, val_wall_data], dim=1)
                 val_outputs = model(val_current_pressure, val_cond_emb)
                 val_predicted_pressure = val_outputs.squeeze(1)
                 val_loss = l1(val_predicted_pressure, val_next_pressures)
@@ -183,16 +186,16 @@ def train(args):
 def launch():
     import argparse
     parser = argparse.ArgumentParser()
-    parser.add_argument('--run_name', type=str, default="fno2d_cond_run")
+    parser.add_argument('--run_name', type=str, default="fno_home_24_width_run")
     parser.add_argument('--patience', type=int, default=10)
     parser.add_argument('--epochs', type=int, default=10)
-    parser.add_argument('--batch_size', type=int, default=48)
+    parser.add_argument('--batch_size', type=int, default=256)
     # New model-specific arguments:
     parser.add_argument('--time_window', type=int, default=1, help="Number of channels for pressure input")
     parser.add_argument('--modes1', type=int, default=6)
     parser.add_argument('--modes2', type=int, default=6)
     parser.add_argument('--width', type=int, default=24)
-    parser.add_argument('--cond_channels', type=int, default=7, help="Dimension of conditioning embedding (matches charge_data features)")
+    parser.add_argument('--cond_channels', type=int, default=26, help="Dimension of conditioning embedding (matches conditioning dimension[1])")
     parser.add_argument('--num_layers', type=int, default=4)
     parser.add_argument('--dataset_path', type=str, default="/home/reid/projects/blast_waves/hdf5_dataset")
     parser.add_argument('--device', type=str, default="cuda")
