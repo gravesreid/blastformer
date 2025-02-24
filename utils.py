@@ -208,6 +208,26 @@ def plot_reconstruction_all(data_sample, reconstructed_pressures, index=0, save_
     else:
         plt.close(fig)
 
+def plot_recursive_predictions(sample_pressures, predicted_pressures, time_steps):
+    fig, axes = plt.subplots(1, 2, figsize=(16, 8))
+
+    # Initialize images once
+    img1 = axes[0].imshow(sample_pressures[0].cpu().numpy(), cmap="jet", animated=True)
+    img2 = axes[1].imshow(predicted_pressures[0].cpu().numpy(), cmap="jet", animated=True)
+
+    axes[0].set_title("Input Pressure")
+    axes[1].set_title("Predicted Pressure")
+
+    for i, time in enumerate(time_steps):
+        img1.set_data(sample_pressures[i].cpu().numpy())  # Update image data
+        img2.set_data(predicted_pressures[i].cpu().numpy())
+
+        axes[1].set_title(f"Predicted Pressure at Time: {time.item()}")
+        plt.pause(0.001)  # Keep minimal delay, but it’s now updating faster
+
+    plt.show()
+
+
 
 def setup_logging(run_name):
     os.makedirs("models", exist_ok=True)
