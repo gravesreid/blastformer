@@ -19,7 +19,7 @@ def convert_simulation_to_hdf5(sim_dir, output_hdf5):
 
     # Now we break up the files into data samples. Call the source timestep_i, and the target timestep_i+1
     total_timesteps = len(json_files)
-    for index in tqdm(range(total_timesteps - 1), desc=f"Processing {sim_dir}", leave=False):
+    for index in tqdm(range(total_timesteps - 20), desc=f"Processing {sim_dir}", leave=False):
         source_index = index
         target_index = index + 1
         source_json_file = json_files[source_index]
