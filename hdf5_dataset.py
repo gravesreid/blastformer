@@ -97,6 +97,15 @@ class BlastDataset(Dataset):
             source_charge_data = torch.tensor(data["source_charge_data"][:], dtype=torch.float32)
             target_charge_data = torch.tensor(data["target_charge_data"][:], dtype=torch.float32)
 
+            # normalize time min is 0, max is 0.0075
+            source_time = source_time / 0.0075
+            target_time = target_time / 0.0075
+
+            # add a time channel to source data
+            time_grid = torch.full_like(source_pressure, source_time[0], dtype=torch.float32)
+            source_pressure_with_time = torch.stack([source_pressure, time_grid], dim=0)
+            target_pressure_with_time = torch.stack([target_pressure, time_grid], dim=0)
+
             if self.normalize:
                 source_pressure = (source_pressure - self.mean) / self.std
                 target_pressure = (target_pressure - self.mean) / self.std
@@ -105,7 +114,9 @@ class BlastDataset(Dataset):
             "simulation_number": simulation_number,
             "timestep_number": timestep_number,
             "source_pressure": source_pressure,
+            "source_pressure_with_time": source_pressure_with_time,
             "target_pressure": target_pressure,
+            "target_pressure_with_time": target_pressure_with_time,
             "source_time": source_time,
             "target_time": target_time,
             "source_wall_locations": source_wall_locations,
@@ -136,6 +147,8 @@ def main():
         timestep_number = batch["timestep_number"]
         source_pressure = batch["source_pressure"]
         print(f'source_pressure shape: {source_pressure.shape}')
+        source_pressure_with_time = batch["source_pressure_with_time"]
+        print(f'source_pressure_with_time shape: {source_pressure_with_time.shape}')
         original_pressures.append(source_pressure)
         target_pressure = batch["target_pressure"]
         source_time = batch["source_time"]

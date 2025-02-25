@@ -4,6 +4,7 @@ import math
 import numpy as np
 import matplotlib.pyplot as plt
 import matplotlib.patches as patches
+import matplotlib.animation as animation
 import os
 import logging
 import wandb
@@ -223,9 +224,13 @@ def plot_recursive_predictions(sample_pressures, predicted_pressures, time_steps
         img2.set_data(predicted_pressures[i].cpu().numpy())
 
         axes[1].set_title(f"Predicted Pressure at Time: {time.item()}")
+        axes[0].set_title(f"Input pressure at timestep: {i}")
         plt.pause(0.001)  # Keep minimal delay, but it’s now updating faster
 
     plt.show()
+
+
+
 
 
 

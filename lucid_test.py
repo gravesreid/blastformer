@@ -46,7 +46,7 @@ def test(args):
     total_l1_loss = 0
     total_l2_loss = 0
 
-    simulation_to_visualize = 1060
+    simulation_to_visualize = 1057
 
     sample_pressures = []
     sample_times = []
@@ -73,28 +73,49 @@ def test(args):
                 sample_charge_data.extend([c for c in charge_data])
                 sample_wall_locations.extend([w for w in wall_locations])
 
-            if len(sample_times) >= 500:
+            if len(sample_times) >= 800:
                 break
     clipped_sample_pressures = []
+    clipped_times = []
     last_pressure = None
+    l1_losses = []
+    l2_losses = []
     with torch.no_grad():
         for i,time in enumerate(sample_times):
             print(f"Processing sample {i}, time {time}")
             if i > 100:
                 clipped_sample_pressures.append(sample_pressures[i])
+                clipped_times.append(sample_times[i])
                 if last_pressure is None:
                     last_pressure = sample_pressures[i]
                     predicted_pressure = model(last_pressure.unsqueeze(0), sample_charge_data[i].unsqueeze(0), sample_wall_locations[i].unsqueeze(0), time.unsqueeze(0)).squeeze(1)
                     predicted_pressures.append(predicted_pressure.squeeze(0))
+                    l1_loss = l1(predicted_pressure, sample_pressures[i])
+                    l2_loss = l2(predicted_pressure, sample_pressures[i])
+                    l1_losses.append(l1_loss.item())
+                    l2_losses.append(l2_loss.item())
                     last_pressure = predicted_pressure
                 else:
-                    predicted_pressure = model(last_pressure, sample_charge_data[i].unsqueeze(0), sample_wall_locations[i].unsqueeze(0), time.unsqueeze(0)).squeeze(1)
+                    last_pressure = sample_pressures[i]
+                    predicted_pressure = model(last_pressure.unsqueeze(0), sample_charge_data[i].unsqueeze(0), sample_wall_locations[i].unsqueeze(0), time.unsqueeze(0)).squeeze(1)
                     predicted_pressures.append(predicted_pressure.squeeze(0))
+                    l1_loss = l1(predicted_pressure, sample_pressures[i])
+                    l2_loss = l2(predicted_pressure, sample_pressures[i])
+                    l1_losses.append(l1_loss.item())
+                    l2_losses.append(l2_loss.item())
                     last_pressure = predicted_pressure
 
     
 
-    plot_recursive_predictions(clipped_sample_pressures, predicted_pressures, sample_times)
+    plot_recursive_predictions(clipped_sample_pressures, predicted_pressures, clipped_times)
+
+
+    # plot losses
+    plt.figure()
+    plt.plot(l1_losses, label="L1 Loss")
+    plt.plot(l2_losses, label="L2 Loss")
+    plt.legend()
+    plt.show()
 
 
 
