@@ -225,7 +225,7 @@ def plot_recursive_predictions(sample_pressures, predicted_pressures, time_steps
 
         axes[1].set_title(f"Predicted Pressure at Time: {time.item()}")
         axes[0].set_title(f"Input pressure at timestep: {i}")
-        plt.pause(0.001)  # Keep minimal delay, but it’s now updating faster
+        plt.pause(0.1)  # Keep minimal delay, but it’s now updating faster
 
     plt.show()
 

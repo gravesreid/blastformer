@@ -22,11 +22,6 @@ def test(args):
     dataset = BlastDataset(args.dataset_path, split="test", normalize=True)
     dataloader = DataLoader(dataset, batch_size=args.batch_size, shuffle=False, num_workers=min(16, os.cpu_count() - 1))
     
-    patch_size = args.patch_size
-    hidden_dim = args.hidden_dim
-    num_layers = args.num_layers
-    output_dim = 99
-    input_dim = (99**2) // (patch_size**2)
 
     # Load model
     model = FNO2d_cond(
@@ -69,6 +64,7 @@ def test(args):
                 current_pressure = batch["source_pressure"].to(device)  # shape: (batch_size, 99, 99)
                 charge_data = batch["source_charge_data"].to(device)
                 wall_locations = batch["source_wall_locations"].to(device)
+                wall_locations = wall_locations.reshape(wall_locations.shape[0], -1)
                 current_time = batch["source_time"].to(device)
                 cond_emb = torch.cat([charge_data, current_time, wall_locations], dim=1)
                 sample_embedding.extend([e for e in cond_emb])
@@ -82,15 +78,17 @@ def test(args):
     with torch.no_grad():
         for i,time in enumerate(sample_times):
             print(f"Processing sample {i}, time {time}")
-            if i > 100:
+            if i >= 0:
                 clipped_sample_pressures.append(sample_pressures[i])
                 if last_pressure is None:
                     last_pressure = sample_pressures[i]
-                    predicted_pressure = model(last_pressure.unsqueeze(0), sample_embedding[i].unsqueeze(0)).squeeze(1)
+                    print(f"last_pressure shape: {last_pressure.shape}")
+                    print(f"sample_embedding shape: {sample_embedding[i].shape}")
+                    predicted_pressure = model(last_pressure.unsqueeze(0).unsqueeze(0), sample_embedding[i].unsqueeze(0)).squeeze(1)
                     predicted_pressures.append(predicted_pressure.squeeze(0))
                     last_pressure = predicted_pressure
                 else:
-                    predicted_pressure = model(last_pressure, sample_embedding[i].unsqueeze(0)).squeeze(1)
+                    predicted_pressure = model(last_pressure.unsqueeze(0), sample_embedding[i].unsqueeze(0)).squeeze(1)
                     predicted_pressures.append(predicted_pressure.squeeze(0))
                     last_pressure = predicted_pressure
 
@@ -105,13 +103,20 @@ def test(args):
 def launch():
     import argparse
     parser = argparse.ArgumentParser()
-    parser.add_argument('--run_name', type=str, default="lucid_blastformer_lab-512_hidden_dim")
+    parser.add_argument('--run_name', type=str, default="fno_home_24_width_run")
+    parser.add_argument('--patience', type=int, default=10)
+    parser.add_argument('--epochs', type=int, default=20)
     parser.add_argument('--batch_size', type=int, default=2)
-    parser.add_argument('--patch_size', type=int, default=3)
-    parser.add_argument('--hidden_dim', type=int, default=512)
+    # New model-specific arguments:
+    parser.add_argument('--time_window', type=int, default=1, help="Number of channels for pressure input")
+    parser.add_argument('--modes1', type=int, default=6)
+    parser.add_argument('--modes2', type=int, default=6)
+    parser.add_argument('--width', type=int, default=24)
+    parser.add_argument('--cond_channels', type=int, default=26, help="Dimension of conditioning embedding (matches conditioning dimension[1])")
     parser.add_argument('--num_layers', type=int, default=4)
     parser.add_argument('--dataset_path', type=str, default="/home/reid/projects/blast_waves/hdf5_dataset")
     parser.add_argument('--device', type=str, default="cuda")
+    parser.add_argument('--lr', type=float, default=1e-4)
     args = parser.parse_args()
     
     wandb.init(project="blastformer_test", name=f"{args.run_name}_test")
