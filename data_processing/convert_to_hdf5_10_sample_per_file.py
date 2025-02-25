@@ -67,12 +67,26 @@ def convert_simulation_to_hdf5(sim_dir, output_hdf5):
                 "charge_data": target_charge_data,
             })
 
-        # Save all 10 samples in a single HDF5 file
-        output_hdf5_path = output_hdf5.replace(".hdf5", f"_{index}.hdf5")
-        with h5py.File(output_hdf5_path, "w") as hdf5_file:
-            grp = hdf5_file.create_group("data")
-            grp.create_dataset("source", data=np.array(source_samples, dtype=object))
-            grp.create_dataset("target", data=np.array(target_samples, dtype=object))
+    # Save all 10 samples in a single HDF5 file
+    output_hdf5_path = output_hdf5.replace(".hdf5", f"_{index}.hdf5")
+    with h5py.File(output_hdf5_path, "w") as hdf5_file:
+        grp = hdf5_file.create_group("data")
+        
+        # Iterate over 10 samples and save each field separately
+        for i, (source_sample, target_sample) in enumerate(zip(source_samples, target_samples)):
+            timestep_grp = grp.create_group(f"timestep_{i}")
+
+            # Store each field separately
+            timestep_grp.create_dataset("source_pressure", data=source_sample["pressure"])
+            timestep_grp.create_dataset("source_time", data=source_sample["time"])
+            timestep_grp.create_dataset("source_wall_locations", data=source_sample["wall_locations"])
+            timestep_grp.create_dataset("source_charge_data", data=source_sample["charge_data"])
+            
+            timestep_grp.create_dataset("target_pressure", data=target_sample["pressure"])
+            timestep_grp.create_dataset("target_time", data=target_sample["time"])
+            timestep_grp.create_dataset("target_wall_locations", data=target_sample["wall_locations"])
+            timestep_grp.create_dataset("target_charge_data", data=target_sample["charge_data"])
+
 
 
 
