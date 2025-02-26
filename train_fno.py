@@ -190,7 +190,7 @@ def launch():
     parser.add_argument('--patience', type=int, default=10)
     parser.add_argument('--epochs', type=int, default=20)
     parser.add_argument('--batch_size', type=int, default=256)
-    # New model-specific arguments:
+    parser.add_argument('--warmup_epochs', type=int, default=1)
     parser.add_argument('--time_window', type=int, default=1, help="Number of channels for pressure input")
     parser.add_argument('--modes1', type=int, default=6)
     parser.add_argument('--modes2', type=int, default=6)
