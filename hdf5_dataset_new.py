@@ -72,7 +72,9 @@ class BlastDataset(Dataset):
         return len(self.file_list)
 
     def __getitem__(self, idx):
-        sample_path = self.file_list[idx]
+        sim_idx = idx // 900
+        timestep_idx = idx % 900
+        sample_path = self.file_list[sim_idx]
         with h5py.File(sample_path, "r") as f:
             # the filename has format simulationNumber_timestepNumber.hdf5
             #extract simulation and timestep number
@@ -85,9 +87,18 @@ class BlastDataset(Dataset):
             wall_3 = torch.tensor(f["wall_3"], dtype=torch.float32)
             number_of_timesteps = torch.tensor(f["number_of_timesteps"][()].item(), dtype=torch.int32)
             max_time = torch.tensor(f["max_time"][()].item(), dtype=torch.float32)
-            times = torch.tensor(f["times"], dtype=torch.float32)
-            pressures = np.array(f["pressures"], dtype=np.float32)
+
+            # fetch consecutive timesteps
+            end_idx = min(timestep_idx + 10, number_of_timesteps)
+            times = torch.tensor(f["times"][timestep_idx:end_idx], dtype=torch.float32)
+            pressures = np.array(f["pressures"][timestep_idx:end_idx], dtype=np.float32)
             pressures = torch.tensor(pressures, dtype=torch.float32)
+
+            # handle cases where the number of timesteps is less than 10
+            if times.shape[0] < 10:
+                padding = torch.zeros((10 - times.shape[0], *times.shape[1:]), dtype=torch.float32)
+                times = torch.cat([times, padding], dim=0)
+                pressures = torch.cat([pressures, padding.expand(10 - pressures.shape[0], 99, 99)], dim=0)
 
         return {
             "charge_center": charge_center,
@@ -130,6 +141,8 @@ def main():
         print(f'wall_3 shape: {wall_3.shape}')
         print(f'times shape: {times.shape}')
         print(f'pressures shape: {pressures.shape}')
+        print(f'times: {times}')
+        
         break
 
     

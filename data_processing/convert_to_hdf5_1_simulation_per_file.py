@@ -34,40 +34,44 @@ def convert_simulation_to_hdf5(sim_dir, output_hdf5):
     max_time = 0 
     times = []
     pressures = []  
+    if total_timesteps > 900:
+        for index in tqdm(range(total_timesteps), desc=f"Processing {sim_dir}", leave=False):
+            # skip if total timesteps is less than 900
+            # stop after 900 timesteps
+            if index == 900:
+                break
+            json_file = json_files[index]
+            with open(os.path.join(sim_dir, json_file), "r") as f:
+                data = json.load(f)
 
-    for index in tqdm(range(total_timesteps), desc=f"Processing {sim_dir}", leave=False):
-        json_file = json_files[index]
-        with open(os.path.join(sim_dir, json_file), "r") as f:
-            data = json.load(f)
+            # Convert JSON data to numpy arrays
+            pressure = np.array(data["pressure"], dtype=np.float32).reshape(99, 99)
+            time = np.float32(data["time"])
+            
+            max_time = max(max_time, time)
 
-        # Convert JSON data to numpy arrays
-        pressure = np.array(data["pressure"], dtype=np.float32).reshape(99, 99)
-        time = np.float32(data["time"])
-        
-        max_time = max(max_time, time)
+            times.append(time)
+            pressures.append(pressure)
 
-        times.append(time)
-        pressures.append(pressure)
-
-    # convert the times and pressures to numpy arrays. Pressure is a 3D array, times is a 1D array
-    times = np.array(times, dtype=np.float32)
-    pressures = np.array(pressures, dtype=np.float32)
-    print(f'pressures shape: {pressures.shape}')
-    # pressures is a 3D array of shape (total_timesteps, 99, 99)
-    # times is a 1D array of shape (total_timesteps,)
+        # convert the times and pressures to numpy arrays. Pressure is a 3D array, times is a 1D array
+        times = np.array(times, dtype=np.float32)
+        pressures = np.array(pressures, dtype=np.float32)
+        print(f'pressures shape: {pressures.shape}')
+        # pressures is a 3D array of shape (total_timesteps, 99, 99)
+        # times is a 1D array of shape (total_timesteps,)
 
 
-    with h5py.File(output_hdf5, "w") as hdf5_file:
-        hdf5_file.create_dataset("number_of_timesteps", data=total_timesteps)
-        hdf5_file.create_dataset("max_time", data=max_time)
-        hdf5_file.create_dataset("wall_1", data=wall_1)
-        hdf5_file.create_dataset("wall_2", data=wall_2)
-        hdf5_file.create_dataset("wall_3", data=wall_3)
-        hdf5_file.create_dataset("charge_center", data=charge_center)
-        hdf5_file.create_dataset("charge_mass", data=charge_mass)
+        with h5py.File(output_hdf5, "w") as hdf5_file:
+            hdf5_file.create_dataset("number_of_timesteps", data=total_timesteps)
+            hdf5_file.create_dataset("max_time", data=max_time)
+            hdf5_file.create_dataset("wall_1", data=wall_1)
+            hdf5_file.create_dataset("wall_2", data=wall_2)
+            hdf5_file.create_dataset("wall_3", data=wall_3)
+            hdf5_file.create_dataset("charge_center", data=charge_center)
+            hdf5_file.create_dataset("charge_mass", data=charge_mass)
 
-        hdf5_file.create_dataset("times", data=times, shape=(total_timesteps,), chunks=(10,))
-        hdf5_file.create_dataset("pressures", data=pressures, shape=(total_timesteps, 99, 99), chunks=(10, 99, 99))
+            hdf5_file.create_dataset("times", data=times, shape=(900,), chunks=(10,))
+            hdf5_file.create_dataset("pressures", data=pressures, shape=(900, 99, 99), chunks=(10, 99, 99))
 
 
 
