@@ -119,7 +119,8 @@ class FourierBasicBlock(nn.Module):
 
 class FNO2d_cond(nn.Module):
     def __init__(self,
-                 time_window: int = 20,
+                 time_window_in: int = 20,
+                 time_window_out: int = 20,
                  modes1: int = 6,
                  modes2: int = 6,
                  width: int = 24,
@@ -137,8 +138,8 @@ class FNO2d_cond(nn.Module):
         self.modes1 = modes1
         self.modes2 = modes2
         self.width = width
-        self.in_channels = time_window
-        self.out_channels = time_window
+        self.in_channels = time_window_in
+        self.out_channels = time_window_out
 
         self.conv_in1 = nn.Conv2d(
             self.in_channels,

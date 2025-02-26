@@ -6,6 +6,9 @@ from torch.utils.data import DataLoader
 import json
 from utils import patchify_batch, unpatchify_batch, plot_reconstruction_all
 import numpy as np
+import matplotlib.pyplot as plt
+import matplotlib.patches as patches
+import matplotlib.animation as animation
 
 class BlastDataset(Dataset):
     """Dataset for BlastFoam simulations stored in HDF5 format."""
@@ -69,11 +72,15 @@ class BlastDataset(Dataset):
         return params["mean"], params["std"]
 
     def __len__(self):
-        return len(self.file_list)
+    # Each file gives you (900 - 10 + 1) possible samples
+        return len(self.file_list) * (900 - 10 + 1)
+
 
     def __getitem__(self, idx):
-        sim_idx = idx // 900
-        timestep_idx = idx % 900
+        window_size = 10
+        valid_starts = 900 - window_size + 1
+        sim_idx = idx // valid_starts
+        timestep_idx = idx % valid_starts
         sample_path = self.file_list[sim_idx]
         with h5py.File(sample_path, "r") as f:
             # the filename has format simulationNumber_timestepNumber.hdf5
@@ -89,16 +96,17 @@ class BlastDataset(Dataset):
             max_time = torch.tensor(f["max_time"][()].item(), dtype=torch.float32)
 
             # fetch consecutive timesteps
-            end_idx = min(timestep_idx + 10, number_of_timesteps)
+            end_idx = min(timestep_idx + 10, 900)
             times = torch.tensor(f["times"][timestep_idx:end_idx], dtype=torch.float32)
             pressures = np.array(f["pressures"][timestep_idx:end_idx], dtype=np.float32)
             pressures = torch.tensor(pressures, dtype=torch.float32)
 
             # handle cases where the number of timesteps is less than 10
             if times.shape[0] < 10:
-                padding = torch.zeros((10 - times.shape[0], *times.shape[1:]), dtype=torch.float32)
-                times = torch.cat([times, padding], dim=0)
-                pressures = torch.cat([pressures, padding.expand(10 - pressures.shape[0], 99, 99)], dim=0)
+                times_padding = torch.zeros((10 - times.shape[0], *times.shape[1:]), dtype=torch.float32)
+                times = torch.cat([times, times_padding], dim=0)
+                pressures_padding = torch.zeros((10 - pressures.shape[0], *pressures.shape[1:]), dtype=torch.float32)
+                pressures = torch.cat([pressures, pressures_padding], dim=0)
 
         return {
             "charge_center": charge_center,
@@ -121,8 +129,11 @@ def main():
     num_workers=min(12, os.cpu_count() - 2),  # Multi-worker loading
     )
 
-
+    num_processed = 0
+    pressures_list = []
     for batch in dataloader:
+        if num_processed >= 90:
+            break
         charge_center = batch["charge_center"]
         charge_mass = batch["charge_mass"]
         wall_1 = batch["wall_1"]
@@ -130,6 +141,7 @@ def main():
         wall_3 = batch["wall_3"]
         times = batch["times"]
         pressures = batch["pressures"]
+        pressures_list.append(pressures)
         number_of_timesteps = batch["number_of_timesteps"]
         max_time = batch["max_time"]
         print(f"number_of_timesteps: {number_of_timesteps}")
@@ -142,8 +154,20 @@ def main():
         print(f'times shape: {times.shape}')
         print(f'pressures shape: {pressures.shape}')
         print(f'times: {times}')
-        
-        break
+        num_processed += 1
+
+
+    fig, axes = plt.subplots(1, 1, figsize=(12, 4))
+    print(f'pressures_list length: {len(pressures_list)}')
+    for time_batch in pressures_list:
+            time_batch = time_batch.squeeze(0)  # Remove batch dim -> Shape [10, 99, 99]
+            for time_step in range(10):
+                axes.clear()  # Clear previous image
+                axes.imshow(time_batch[time_step], cmap="jet")
+                axes.set_title(f"Timestep {time_step + 1}")
+                plt.pause(0.1)  # Pause to animate
+
+    plt.show()
 
     
 

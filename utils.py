@@ -99,13 +99,13 @@ def visualize_results(input_pressure, target_pressure, predicted_pressure, run_n
     fig, axes = plt.subplots(num_samples, 3, figsize=(12, 4 * num_samples))
 
     for i in range(num_samples):
-        axes[i, 0].imshow(input_pressure[i].cpu().numpy(), cmap="jet")
+        axes[i, 0].imshow(input_pressure.cpu().numpy(), cmap="jet")
         axes[i, 0].set_title("Input Pressure")
 
-        axes[i, 1].imshow(target_pressure[i].cpu().numpy(), cmap="jet")
+        axes[i, 1].imshow(target_pressure.cpu().numpy(), cmap="jet")
         axes[i, 1].set_title("Target Pressure")
 
-        axes[i, 2].imshow(predicted_pressure[i].cpu().numpy(), cmap="jet")
+        axes[i, 2].imshow(predicted_pressure.cpu().numpy(), cmap="jet")
         axes[i, 2].set_title("Predicted Pressure")
 
     plt.tight_layout()
