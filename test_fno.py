@@ -78,7 +78,7 @@ def test(args):
     with torch.no_grad():
         for i,time in enumerate(sample_times):
             print(f"Processing sample {i}, time {time}")
-            if i >= 0:
+            if i >= 60:
                 clipped_sample_pressures.append(sample_pressures[i])
                 if last_pressure is None:
                     last_pressure = sample_pressures[i]
@@ -103,7 +103,7 @@ def test(args):
 def launch():
     import argparse
     parser = argparse.ArgumentParser()
-    parser.add_argument('--run_name', type=str, default="fno_home_24_width_run")
+    parser.add_argument('--run_name', type=str, default="fno_normalized_time_home_24_width_run")
     parser.add_argument('--patience', type=int, default=10)
     parser.add_argument('--epochs', type=int, default=20)
     parser.add_argument('--batch_size', type=int, default=2)
@@ -125,4 +125,3 @@ def launch():
 
 if __name__ == '__main__':
     launch()
-
