@@ -4,3 +4,4 @@ wandb/
 runs/
 results/
 models/
+predictions/
