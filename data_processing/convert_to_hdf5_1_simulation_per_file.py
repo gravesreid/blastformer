@@ -12,6 +12,7 @@ def convert_simulation_to_hdf5(sim_dir, output_hdf5):
         sim_dir (str): Path to the simulation directory.
         output_hdf5 (str): Path to the output HDF5 file.
     """
+    simulation_number
     json_files = sorted(
         [f for f in os.listdir(sim_dir) if f.endswith('.json')],
         key=lambda x: int(x.split('_')[-1].split('.')[0])  # Sort by timestep index

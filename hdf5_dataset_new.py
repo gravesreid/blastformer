@@ -86,6 +86,7 @@ class BlastDataset(Dataset):
             # the filename has format simulationNumber_timestepNumber.hdf5
             #extract simulation and timestep number
             filename = os.path.basename(sample_path)
+            simulation_number = int(filename.split('.')[0])
             keys = list(f.keys())
             charge_center = torch.tensor(f["charge_center"], dtype=torch.float32)
             charge_mass = torch.tensor(f["charge_mass"][()].item(), dtype=torch.float32)
@@ -101,6 +102,11 @@ class BlastDataset(Dataset):
             pressures = np.array(f["pressures"][timestep_idx:end_idx], dtype=np.float32)
             pressures = torch.tensor(pressures, dtype=torch.float32)
 
+            if self.normalize:
+                pressures = (pressures - self.mean) / self.std
+            # max time value is 0.0075, so we can normalize the times by dividing by max time
+            times = times / max_time
+
             # handle cases where the number of timesteps is less than 10
             if times.shape[0] < 10:
                 times_padding = torch.zeros((10 - times.shape[0], *times.shape[1:]), dtype=torch.float32)
@@ -109,6 +115,7 @@ class BlastDataset(Dataset):
                 pressures = torch.cat([pressures, pressures_padding], dim=0)
 
         return {
+            "simulation_number": simulation_number,
             "charge_center": charge_center,
             "charge_mass": charge_mass,
             "wall_1": wall_1,
@@ -134,6 +141,8 @@ def main():
     for batch in dataloader:
         if num_processed >= 90:
             break
+        simulation_number = batch["simulation_number"]
+        print(f"Simulation number: {simulation_number}")
         charge_center = batch["charge_center"]
         charge_mass = batch["charge_mass"]
         wall_1 = batch["wall_1"]
