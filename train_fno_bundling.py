@@ -84,8 +84,8 @@ def train(args):
             times = batch["times"].to(device)
             pressures = batch["pressures"].to(device)
             # take first 5 channels of pressure as input, and the next 5 channels as output
-            current_pressure = pressures[:, :5, :, :]
-            next_pressures = pressures[:, 5:, :, :]
+            current_pressure = pressures[:, :9, :, :]
+            next_pressures = pressures[:, -1, :, :].unsqueeze(1)
             current_time = times[:, :-1]
             next_time = times[:, 1:]
             conditioning = torch.cat([charge_center, charge_mass.unsqueeze(1), wall_1, wall_2, wall_3, current_time], dim=1)
@@ -127,8 +127,8 @@ def train(args):
                 val_wall_3 = val_batch["wall_3"].to(device)
                 val_times = val_batch["times"].to(device)
                 val_pressures = val_batch["pressures"].to(device)
-                val_current_pressure = val_pressures[:, :5, :, :]
-                val_next_pressures = val_pressures[:, 5:, :, :]
+                val_current_pressure = val_pressures[:, :9, :, :]
+                val_next_pressures = val_pressures[:, -1, :, :].unsqueeze(1)
                 val_current_time = val_times[:, :-1]
                 val_next_time = val_times[:, 1:]
                 val_conditioning = torch.cat([val_charge_center, val_charge_mass.unsqueeze(1), val_wall_1, val_wall_2, val_wall_3, val_current_time], dim=1)
@@ -188,17 +188,17 @@ def train(args):
 def launch():
     import argparse
     parser = argparse.ArgumentParser()
-    parser.add_argument('--run_name', type=str, default="fno_normalized_time_bundling_lab_24_width_run")
+    parser.add_argument('--run_name', type=str, default="fno_normalized_time_bundling_10_modes_lab_24_width_run")
     parser.add_argument('--patience', type=int, default=10)
     parser.add_argument('--epochs', type=int, default=20)
-    parser.add_argument('--batch_size', type=int, default=256)
+    parser.add_argument('--batch_size', type=int, default=200)
     parser.add_argument('--warmup_epochs', type=int, default=1)
     parser.add_argument('--pushforward_steps', type=int, default=1)
     parser.add_argument('--bundling', type=int, default=2)
-    parser.add_argument('--time_window', type=int, default=5, help="Number of channels for pressure input")
-    parser.add_argument('--time_window_out', type=int, default=5, help="Number of channels for pressure output")
-    parser.add_argument('--modes1', type=int, default=6)
-    parser.add_argument('--modes2', type=int, default=6)
+    parser.add_argument('--time_window', type=int, default=9, help="Number of channels for pressure input")
+    parser.add_argument('--time_window_out', type=int, default=1, help="Number of channels for pressure output")
+    parser.add_argument('--modes1', type=int, default=10)
+    parser.add_argument('--modes2', type=int, default=10)
     parser.add_argument('--width', type=int, default=24)
     parser.add_argument('--cond_channels', type=int, default=31, help="Dimension of conditioning embedding (matches conditioning dimension[1])")
     parser.add_argument('--num_layers', type=int, default=4)

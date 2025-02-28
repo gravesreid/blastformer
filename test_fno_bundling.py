@@ -84,7 +84,7 @@ def test(args):
     index_to_start = 60
     print(f'sample_pressures: {len(sample_pressures)}')
     print(f'sample pressures sample: {sample_pressures[0].shape}')
-    initial_pressure = torch.stack(sample_pressures[index_to_start:index_to_start+5])
+    initial_pressure = torch.stack(sample_pressures[index_to_start:index_to_start+9])
     current_pressure = initial_pressure.unsqueeze(0)
     predicted_pressures = []
     fig, ax = plt.subplots(2, 5, figsize=(20, 8))
@@ -126,9 +126,9 @@ def test(args):
 
             # Update `current_pressure` for recursive prediction
             current_pressure[:-1] = current_pressure[1:]
-            current_pressure[-1] = predicted_pressure[0]
+            current_pressure[-1] = predicted_pressure
             predicted_pressures.append(predicted_pressure[0, 0, :, :])
-            if i > 50:
+            if i > 50 + index_to_start:
                 break
 
 
@@ -147,15 +147,15 @@ def test(args):
 def launch():
     import argparse
     parser = argparse.ArgumentParser()
-    parser.add_argument('--run_name', type=str, default="fno_normalized_time_bundling_lab_24_width_run")
+    parser.add_argument('--run_name', type=str, default="fno_normalized_time_bundling_10_modes_lab_24_width_run")
     parser.add_argument('--patience', type=int, default=10)
     parser.add_argument('--epochs', type=int, default=20)
     parser.add_argument('--batch_size', type=int, default=2)
     # New model-specific arguments:
-    parser.add_argument('--time_window', type=int, default=5, help="Number of channels for pressure input")
-    parser.add_argument('--time_window_out', type=int, default=5, help="Number of channels for pressure output")
-    parser.add_argument('--modes1', type=int, default=6)
-    parser.add_argument('--modes2', type=int, default=6)
+    parser.add_argument('--time_window', type=int, default=9, help="Number of channels for pressure input")
+    parser.add_argument('--time_window_out', type=int, default=1, help="Number of channels for pressure output")
+    parser.add_argument('--modes1', type=int, default=10)
+    parser.add_argument('--modes2', type=int, default=10)
     parser.add_argument('--width', type=int, default=24)
     parser.add_argument('--cond_channels', type=int, default=31, help="Dimension of conditioning embedding (matches conditioning dimension[1])")
     parser.add_argument('--num_layers', type=int, default=4)
