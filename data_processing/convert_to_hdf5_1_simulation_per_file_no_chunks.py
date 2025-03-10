@@ -4,7 +4,20 @@ import h5py
 import numpy as np
 from tqdm import tqdm  # Progress bar
 
-def convert_simulation_to_hdf5(sim_dir, output_hdf5):
+def generate_probe_positions():
+    """
+    Generate probe positions based on the original grid spacing.
+    
+    Returns:
+        np.ndarray: Array of shape (num_probes, 3) containing (x, y, z) positions.
+    """
+    x = np.arange(-4.9, 5.0, 0.1)
+    y = np.arange(-4.9, 5.0, 0.1)
+    z = 1.0  # Constant height
+    grid = np.array([[i, j, z] for i in x for j in y], dtype=np.float32).reshape(99, 99, 3)
+    return grid
+
+def convert_simulation_to_hdf5(sim_dir, output_hdf5, probe_positions):
     """
     Convert all JSON timestep files within a simulation directory into a single HDF5 file.
     
@@ -70,8 +83,11 @@ def convert_simulation_to_hdf5(sim_dir, output_hdf5):
             hdf5_file.create_dataset("charge_center", data=charge_center)
             hdf5_file.create_dataset("charge_mass", data=charge_mass)
 
-            hdf5_file.create_dataset("times", data=times, shape=(900,), chunks=(10,))
-            hdf5_file.create_dataset("pressures", data=pressures, shape=(900, 99, 99), chunks=(10, 99, 99))
+            hdf5_file.create_dataset("times", data=times, shape=(900,))
+            hdf5_file.create_dataset("pressures", data=pressures, shape=(900, 99, 99))
+
+            # Add probe positions
+            hdf5_file.create_dataset("probe_positions", data=probe_positions, shape=(99,99,3))
 
 
 
@@ -86,6 +102,9 @@ def convert_dataset_to_hdf5(root_dir, output_dir):
         output_dir (str): Destination directory for HDF5 files.
     """
     os.makedirs(output_dir, exist_ok=True)
+
+    # make pressure probe locations
+    probe_positions = generate_probe_positions()
 
     for split in ["train", "test", "val"]:
         split_dir = os.path.join(root_dir, split)
@@ -102,10 +121,10 @@ def convert_dataset_to_hdf5(root_dir, output_dir):
                 continue
 
             output_hdf5 = os.path.join(split_output_dir, f"{sim_dir}.hdf5")
-            convert_simulation_to_hdf5(full_sim_dir, output_hdf5)
+            convert_simulation_to_hdf5(full_sim_dir, output_hdf5, probe_positions)
 
 
 if __name__ == "__main__":
     root_dataset_dir = "/home/reid/projects/blast_waves/dataset_parallel_processed_large"  
-    output_hdf5_dir = "/home/reid/projects/blast_waves/hdf5_dataset_1_simulation_per_file"  
+    output_hdf5_dir = "/home/reid/projects/blast_waves/hdf5_dataset_1_simulation_per_file_no_chunks"  
     convert_dataset_to_hdf5(root_dataset_dir, output_hdf5_dir)

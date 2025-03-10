@@ -45,7 +45,7 @@ def test(args):
     model.eval()  # Set model to evaluation mode
 
 
-    simulation_to_visualize = 1091
+    simulation_to_visualize = 1215
 
     sample_embedding = []
     sample_times = []
@@ -75,13 +75,14 @@ def test(args):
                 sample_embedding.extend([e for e in cond_emb])
                 sample_pressures.extend([p for p in pressures[:, -1, :, :]])
                 sample_times.extend([t for t in times[:, -1]])
+                print(f'len(sample_embedding): {len(sample_embedding)}')
 
             if len(sample_embedding) >= 890:
                 break
     clipped_sample_pressures = []
     times_list = []
     last_pressure = None
-    index_to_start = 60
+    index_to_start = 35
     print(f'sample_pressures: {len(sample_pressures)}')
     print(f'sample pressures sample: {sample_pressures[0].shape}')
     initial_pressure = torch.stack(sample_pressures[index_to_start:index_to_start+9])
@@ -91,6 +92,8 @@ def test(args):
     fig.suptitle(f"Simulation {simulation_to_visualize} - Recursive Predictions")
     output_dir = "predictions"
     os.makedirs(output_dir, exist_ok=True)
+
+    errors = []
 
     with torch.no_grad():
         for i in range(index_to_start, len(sample_embedding), 1):
@@ -103,19 +106,28 @@ def test(args):
             fig, ax = plt.subplots(2, 5, figsize=(20, 8))
             fig.suptitle(f"Simulation {simulation_to_visualize} - Timestep {i}")
 
-            for j in range(5):
-                gt_index = i - 5 + j
-                ax[0, j].imshow(sample_pressures[gt_index].cpu().numpy(), cmap='jet', aspect='auto')
-                ax[0, j].set_title(f'Ground Truth {j} (t={i})')
-                ax[0, j].axis("off")
+            for j in range(10):
+                gt_index = i - 9 + j
+                if j < 5:
+                    ax[0, j].imshow(sample_pressures[gt_index].cpu().numpy(), cmap='jet', aspect='auto')
+                    ax[0, j].set_title(f'Ground Truth {j} (t={i-index_to_start})')
+                    ax[0, j].axis("off")
+                elif j >= 5 and j < 9:
+                    ax[1, j-5].imshow(sample_pressures[gt_index].cpu().numpy(), cmap='jet', aspect='auto')
+                    ax[1, j-5].set_title(f'Ground Truth {j} (t={i-index_to_start})')
+                    ax[1, j-5].axis("off")
+                else:
+                    ax[1, j-5].imshow(predicted_pressure[0, 0, :, :].cpu().numpy(), cmap='jet', aspect='auto')
+                    ax[1, j-5].set_title(f'Prediction {j} (t={i-index_to_start})')
+                    ax[1, j-5].axis("off")
 
-                ax[1, j].imshow(predicted_pressure[0, j].cpu().numpy(), cmap='jet', aspect='auto')
-                ax[1, j].set_title(f'Prediction {j} (t={i})')
-                ax[1, j].axis("off")
-
-                # print difference between ground truth and prediction
-                diff = sample_pressures[j] - predicted_pressure[0, j]
-                print(f"Difference between ground truth and prediction for timestep {i}: {diff}")
+            # print difference between ground truth and prediction
+            diff = sample_pressures[i] - predicted_pressure[0, 0, :, :]
+            mse_error = torch.mean(diff**2).cpu().numpy()
+            errors.append(mse_error)
+            print(f'i - index_to_start: {i - index_to_start}')
+            times_list.append(i-index_to_start)
+            wandb.log({"Timestep": i - index_to_start, "MSE Error": mse_error})
 
             # Save and log to WandB
             filename = os.path.join(output_dir, f"prediction_timestep_{i}.png")
@@ -128,8 +140,22 @@ def test(args):
             current_pressure[:-1] = current_pressure[1:]
             current_pressure[-1] = predicted_pressure
             predicted_pressures.append(predicted_pressure[0, 0, :, :])
-            if i > 50 + index_to_start:
+            if i > 100 + index_to_start:
                 break
+
+        plt.figure(figsize=(10, 5))
+    plt.plot(times_list, errors, marker='o', linestyle='-', color='b')
+    plt.xlabel("Timestep")
+    plt.ylabel("Prediction Error (MSE)")
+    plt.title("Error Progression in Rollout Predictions")
+    plt.grid(True)
+
+    # Save and log plot
+    error_plot_path = os.path.join(output_dir, "error_progression.png")
+    plt.savefig(error_plot_path, bbox_inches="tight")
+    wandb.log({"Error Progression": wandb.Image(error_plot_path)})
+    plt.close()
+
 
 
 
@@ -147,15 +173,15 @@ def test(args):
 def launch():
     import argparse
     parser = argparse.ArgumentParser()
-    parser.add_argument('--run_name', type=str, default="fno_normalized_time_bundling_10_modes_lab_24_width_run")
+    parser.add_argument('--run_name', type=str, default="fno_normalized_time_bundling_home_24_width_run")
     parser.add_argument('--patience', type=int, default=10)
     parser.add_argument('--epochs', type=int, default=20)
     parser.add_argument('--batch_size', type=int, default=2)
     # New model-specific arguments:
     parser.add_argument('--time_window', type=int, default=9, help="Number of channels for pressure input")
     parser.add_argument('--time_window_out', type=int, default=1, help="Number of channels for pressure output")
-    parser.add_argument('--modes1', type=int, default=10)
-    parser.add_argument('--modes2', type=int, default=10)
+    parser.add_argument('--modes1', type=int, default=6)
+    parser.add_argument('--modes2', type=int, default=6)
     parser.add_argument('--width', type=int, default=24)
     parser.add_argument('--cond_channels', type=int, default=31, help="Dimension of conditioning embedding (matches conditioning dimension[1])")
     parser.add_argument('--num_layers', type=int, default=4)

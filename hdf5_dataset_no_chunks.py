@@ -73,15 +73,11 @@ class BlastDataset(Dataset):
 
     def __len__(self):
     # Each file gives you (900 - 10 + 1) possible samples
-        return len(self.file_list) * (900 - 10 + 1)
+        return len(self.file_list)
 
 
     def __getitem__(self, idx):
-        window_size = 10
-        valid_starts = 900 - window_size + 1
-        sim_idx = idx // valid_starts
-        timestep_idx = idx % valid_starts
-        sample_path = self.file_list[sim_idx]
+        sample_path = self.file_list[idx]
         with h5py.File(sample_path, "r") as f:
             # the filename has format simulationNumber_timestepNumber.hdf5
             #extract simulation and timestep number
@@ -95,24 +91,24 @@ class BlastDataset(Dataset):
             wall_3 = torch.tensor(f["wall_3"], dtype=torch.float32)
             number_of_timesteps = torch.tensor(f["number_of_timesteps"][()].item(), dtype=torch.int32)
             max_time = torch.tensor(f["max_time"][()].item(), dtype=torch.float32)
+            probe_positions = np.array(f["probe_positions"], dtype=np.float32)
+            probe_positions = torch.tensor(probe_positions, dtype=torch.float32)
+            probe_positions = probe_positions.reshape( -1, 3)
 
             # fetch consecutive timesteps
-            end_idx = min(timestep_idx + 10, 900)
-            times = torch.tensor(f["times"][timestep_idx:end_idx], dtype=torch.float32)
-            pressures = np.array(f["pressures"][timestep_idx:end_idx], dtype=np.float32)
+            times = torch.tensor(f["times"], dtype=torch.float32)
+            pressures = np.array(f["pressures"], dtype=np.float32)
             pressures = torch.tensor(pressures, dtype=torch.float32)
+            pressures = pressures.reshape(900, -1, 1)
+            # take every 10th timestep
+            pressures = pressures[::10, :, :]
+            times = times[::10]
 
             if self.normalize:
                 pressures = (pressures - self.mean) / self.std
             # max time value is 0.0075, so we can normalize the times by dividing by max time
             times = times / max_time
 
-            # handle cases where the number of timesteps is less than 10
-            if times.shape[0] < 10:
-                times_padding = torch.zeros((10 - times.shape[0], *times.shape[1:]), dtype=torch.float32)
-                times = torch.cat([times, times_padding], dim=0)
-                pressures_padding = torch.zeros((10 - pressures.shape[0], *pressures.shape[1:]), dtype=torch.float32)
-                pressures = torch.cat([pressures, pressures_padding], dim=0)
 
         return {
             "simulation_number": simulation_number,
@@ -124,7 +120,9 @@ class BlastDataset(Dataset):
             "number_of_timesteps": number_of_timesteps,
             "max_time": max_time,
             "times": times,
-            "pressures": pressures,}
+            "pressures": pressures,
+            "probe_positions": probe_positions
+        }
 
 
 def main():
@@ -139,7 +137,7 @@ def main():
     num_processed = 0
     pressures_list = []
     for batch in dataloader:
-        if num_processed >= 90:
+        if num_processed >= 4:
             break
         simulation_number = batch["simulation_number"]
         print(f"Simulation number: {simulation_number}")
@@ -168,13 +166,14 @@ def main():
 
     fig, axes = plt.subplots(1, 1, figsize=(12, 4))
     print(f'pressures_list length: {len(pressures_list)}')
-    for time_batch in pressures_list:
+    for i, time_batch in enumerate(pressures_list):
             time_batch = time_batch.squeeze(0)  # Remove batch dim -> Shape [10, 99, 99]
-            for time_step in range(10):
+            for j, time_step in enumerate(time_batch):
+                print(f'time_step shape: {time_step.shape}')
                 axes.clear()  # Clear previous image
-                axes.imshow(time_batch[time_step], cmap="jet")
-                axes.set_title(f"Timestep {time_step + 1}")
-                plt.pause(0.1)  # Pause to animate
+                axes.imshow(time_step, cmap="jet")
+                axes.set_title(f"Sample number {i + 1}, Time step {j + 1}")
+                plt.pause(0.001)  # Pause to animate
 
     plt.show()
 

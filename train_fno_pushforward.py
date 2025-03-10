@@ -91,7 +91,7 @@ def train(args):
             conditioning = torch.cat([charge_center, charge_mass.unsqueeze(1), wall_1, wall_2, wall_3, current_time], dim=1)
             outputs = model(current_pressure, conditioning)
             loss = l1(outputs, next_pressures)
-            scaled_loss = l2(outputs, next_pressures)
+            scaled_loss = scaledlp_loss(outputs, next_pressures, p=2, reduction="mean")
             optimizer.zero_grad()
             loss.backward()
             optimizer.step()
@@ -99,19 +99,20 @@ def train(args):
             epoch_train_loss += loss.item()
 
             current_lr = optimizer.param_groups[0]['lr']
-            pbar.set_postfix(epoch_loss=loss.item(), scaled_loss=scaled_loss.item(), learning_rate=current_lr)
-            wandb.log({
-                "Batch Loss": loss.item(),
-                "scaled_loss": scaled_loss.item(),
-                "Learning Rate": current_lr,
-                "Epoch": epoch
-            })
+            pbar.set_postfix(MSE_loss=loss.item(), Scaled_loss = scaled_loss.item(), learning_rate=current_lr)
             logger.add_scalar(f"loss: {epoch}", loss.item(), global_step=epoch * l + i)
             logger.add_scalar("learning_rate", current_lr, global_step=epoch * l + i)
 
         epoch_train_loss /= len(training_dataloader)
         training_loss.append(epoch_train_loss)
         scheduler.step()
+        wandb.log({
+            "Training Loss": epoch_train_loss,
+            "scaled_loss": scaled_loss.item(),
+            "Epoch": epoch,
+            "Learning Rate": current_lr
+        })
+        logger.add_scalar("training_loss", epoch_train_loss, global_step=epoch)
 
         # Validation
         model.eval()
@@ -188,18 +189,18 @@ def train(args):
 def launch():
     import argparse
     parser = argparse.ArgumentParser()
-    parser.add_argument('--run_name', type=str, default="fno_normalized_time_bundling_home_24_width_run")
+    parser.add_argument('--run_name', type=str, default="fno_20_Mode_normalized_time_bundling_home_12_width_run")
     parser.add_argument('--patience', type=int, default=10)
     parser.add_argument('--epochs', type=int, default=20)
-    parser.add_argument('--batch_size', type=int, default=256)
+    parser.add_argument('--batch_size', type=int, default=512)
     parser.add_argument('--warmup_epochs', type=int, default=1)
     parser.add_argument('--pushforward_steps', type=int, default=1)
     parser.add_argument('--bundling', type=int, default=2)
     parser.add_argument('--time_window', type=int, default=9, help="Number of channels for pressure input")
     parser.add_argument('--time_window_out', type=int, default=1, help="Number of channels for pressure output")
-    parser.add_argument('--modes1', type=int, default=6)
-    parser.add_argument('--modes2', type=int, default=6)
-    parser.add_argument('--width', type=int, default=24)
+    parser.add_argument('--modes1', type=int, default=20)
+    parser.add_argument('--modes2', type=int, default=20)
+    parser.add_argument('--width', type=int, default=12)
     parser.add_argument('--cond_channels', type=int, default=31, help="Dimension of conditioning embedding (matches conditioning dimension[1])")
     parser.add_argument('--num_layers', type=int, default=4)
     parser.add_argument('--dataset_path', type=str, default="/home/reid/projects/blast_waves/hdf5_dataset_1_simulation_per_file")
