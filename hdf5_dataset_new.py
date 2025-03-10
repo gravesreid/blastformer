@@ -77,7 +77,7 @@ class BlastDataset(Dataset):
 
 
     def __getitem__(self, idx):
-        window_size = 10
+        window_size = 100
         valid_starts = 900 - window_size + 1
         sim_idx = idx // valid_starts
         timestep_idx = idx % valid_starts
@@ -97,7 +97,7 @@ class BlastDataset(Dataset):
             max_time = torch.tensor(f["max_time"][()].item(), dtype=torch.float32)
 
             # fetch consecutive timesteps
-            end_idx = min(timestep_idx + 10, 900)
+            end_idx = min(timestep_idx + 100, 900)
             times = torch.tensor(f["times"][timestep_idx:end_idx], dtype=torch.float32)
             pressures = np.array(f["pressures"][timestep_idx:end_idx], dtype=np.float32)
             pressures = torch.tensor(pressures, dtype=torch.float32)
@@ -128,7 +128,7 @@ class BlastDataset(Dataset):
 
 
 def main():
-    dataset = BlastDataset("/home/reid/projects/blast_waves/hdf5_dataset_1_simulation_per_file_no_chunks", normalize=True)
+    dataset = BlastDataset("/home/reid/projects/blast_waves/hdf5_dataset_1_simulation_per_file_100_chunks", normalize=True)
     dataloader = DataLoader(
     dataset,
     batch_size=1,
@@ -139,7 +139,7 @@ def main():
     num_processed = 0
     pressures_list = []
     for batch in dataloader:
-        if num_processed >= 90:
+        if num_processed >= 200:
             break
         simulation_number = batch["simulation_number"]
         print(f"Simulation number: {simulation_number}")
@@ -170,11 +170,15 @@ def main():
     print(f'pressures_list length: {len(pressures_list)}')
     for time_batch in pressures_list:
             time_batch = time_batch.squeeze(0)  # Remove batch dim -> Shape [10, 99, 99]
-            for time_step in range(10):
-                axes.clear()  # Clear previous image
-                axes.imshow(time_batch[time_step], cmap="jet")
-                axes.set_title(f"Timestep {time_step + 1}")
-                plt.pause(0.1)  # Pause to animate
+            #for time_step in range(10):
+            #    axes.clear()  # Clear previous image
+            #    axes.imshow(time_batch[time_step], cmap="jet")
+            #    axes.set_title(f"Timestep {time_step + 1}")
+            #    plt.pause(0.1)  # Pause to animate
+            axes.clear()
+            axes.imshow(time_batch[0], cmap="jet")
+            axes.set_title(f"Timestep 1")
+            plt.pause(0.1)
 
     plt.show()
 

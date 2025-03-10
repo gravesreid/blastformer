@@ -36,7 +36,7 @@ class TrainUNetAutoencoder:
         self.scheduler = optim.lr_scheduler.ReduceLROnPlateau(
             self.optimizer, 
             mode='min', 
-            factor=0.5, 
+            factor=0.75, 
             patience=5, 
             verbose=True
         )
@@ -70,6 +70,7 @@ class TrainUNetAutoencoder:
             # Backward pass and optimize
             loss.backward()
             self.optimizer.step()
+            self.scheduler.step(loss)
             
             total_loss += loss.item()
             
@@ -197,15 +198,15 @@ def main():
         # Model parameters
         "in_channels": 1,
         "out_channels": 1,
-        "features": [32, 64, 128, 256],
+        "features": [64, 128, 256, 512],
         "bilinear": False,
         
         # Training parameters
-        "batch_size": 256,
+        "batch_size": 128,
         "learning_rate": 1e-4,
         "weight_decay": 1e-5,
-        "epochs": 1,
-        "visualize_every": 1,
+        "epochs": 100,
+        "visualize_every": 5,
         
         # Paths
         "model_save_dir": "models/unet_autoencoder",
@@ -238,14 +239,14 @@ def main():
         train_dataset,
         batch_size=config["batch_size"],
         shuffle=True,
-        num_workers=4
+        num_workers=max(4, os.cpu_count() - 2)
     )
     
     val_loader = DataLoader(
         val_dataset,
         batch_size=config["batch_size"],
         shuffle=False,
-        num_workers=4
+        num_workers=max(4, os.cpu_count() - 2)
     )
     
     # Initialize trainer and start training
