@@ -55,7 +55,7 @@ class TrainUNetAutoencoder:
         total_loss = 0
         
         for batch in tqdm(dataloader, desc="Training"):
-            pressure = batch["pressures"].to(self.device)
+            pressure = batch["pressures"][:, 0, :, :].to(self.device).unsqueeze(1)
 
         
             # Zero the gradients
@@ -82,7 +82,7 @@ class TrainUNetAutoencoder:
         
         with torch.no_grad():
             for batch in tqdm(dataloader, desc="Validation"):
-                inputs = batch["pressures"].to(self.device)
+                inputs = batch["pressures"][:,0,:,:].to(self.device).unsqueeze(1)
                 
                 # Forward pass
                 outputs = self.model(inputs)
@@ -174,7 +174,7 @@ class TrainUNetAutoencoder:
             if (epoch + 1) % self.config["visualize_every"] == 0:
                 # Get a batch of validation data
                 batch = next(iter(val_loader))
-                inputs = batch["pressures"].to(self.device)
+                inputs = batch["pressures"][:, 0, :, :].to(self.device).unsqueeze(1)
                 
                 # Generate reconstructions
                 self.model.eval()
@@ -195,16 +195,16 @@ def main():
     # Define configuration
     config = {
         # Model parameters
-        "in_channels": 10,
-        "out_channels": 10,
+        "in_channels": 1,
+        "out_channels": 1,
         "features": [32, 64, 128, 256],
         "bilinear": False,
         
         # Training parameters
-        "batch_size": 128,
+        "batch_size": 256,
         "learning_rate": 1e-4,
         "weight_decay": 1e-5,
-        "epochs": 10,
+        "epochs": 1,
         "visualize_every": 1,
         
         # Paths
