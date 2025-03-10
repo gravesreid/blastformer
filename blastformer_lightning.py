@@ -3,7 +3,7 @@ from torch import optim, nn, utils, Tensor
 import torch
 from torchvision.transforms import ToTensor
 import lightning as L
-from hdf5_dataset_no_chunks import BlastDataset
+from hdf5_dataset_new import BlastDataset
 from oformer.oformer import OFormerModule
 import wandb
 
@@ -16,7 +16,7 @@ def main():
         modelconfig={
             "encoder": {
                 "input_channels": 1,
-                "time_window": 1,
+                "time_window": 10,
                 "in_emb_dim": 64,
                 "out_chanels": 16,
                 "heads": 4,
@@ -31,14 +31,13 @@ def main():
             "dist": "normal",
             "learning_rate": 1e-4,
             "batch_size": 8,
-            "accumulation_steps": 1,
             "max_epochs": 20,
             "scheduler": "Cosine",
             "dataset_size": 100,
         },
     )
     # Load Dataset and Dataloader
-    root_dir = "/home/reid/projects/blast_waves/hdf5_dataset_1_simulation_per_file_no_chunks"
+    root_dir = "/home/reid/projects/blast_waves/hdf5_dataset_1_simulation_per_file"
     dataset = BlastDataset(root_dir)
     dataloader = torch.utils.data.DataLoader(
     dataset,

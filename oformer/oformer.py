@@ -79,6 +79,7 @@ class OFormerModule(L.LightningModule):
         cond = torch.cat((charge_center, charge_mass.unsqueeze(1), wall_1, wall_2, wall_3), dim=1)
 
         pressures = batch["pressures"]
+        print(f'pressures shape: {pressures.shape}')
         pos = batch["probe_positions"]
         pos = pos[ :, :, :2] # 1 m 2
         
