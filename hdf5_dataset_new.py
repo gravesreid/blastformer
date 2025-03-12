@@ -72,13 +72,13 @@ class BlastDataset(Dataset):
         return params["mean"], params["std"]
 
     def __len__(self):
-    # Each file gives you (900 - 10 + 1) possible samples
-        return len(self.file_list) * (900 - 10 + 1)
+    # Each file gives you (90 - 10 + 1) possible samples
+        return len(self.file_list) * (90 - 10 + 1)
 
 
     def __getitem__(self, idx):
-        window_size = 100
-        valid_starts = 900 - window_size + 1
+        window_size = 10
+        valid_starts = 90 - window_size + 1
         sim_idx = idx // valid_starts
         timestep_idx = idx % valid_starts
         sample_path = self.file_list[sim_idx]
@@ -97,7 +97,7 @@ class BlastDataset(Dataset):
             max_time = torch.tensor(f["max_time"][()].item(), dtype=torch.float32)
 
             # fetch consecutive timesteps
-            end_idx = min(timestep_idx + 100, 900)
+            end_idx = min(timestep_idx + 10, 90)
             times = torch.tensor(f["times"][timestep_idx:end_idx], dtype=torch.float32)
             pressures = np.array(f["pressures"][timestep_idx:end_idx], dtype=np.float32)
             pressures = torch.tensor(pressures, dtype=torch.float32)
@@ -128,7 +128,7 @@ class BlastDataset(Dataset):
 
 
 def main():
-    dataset = BlastDataset("/home/reid/projects/blast_waves/hdf5_dataset_1_simulation_per_file_100_chunks", normalize=True)
+    dataset = BlastDataset("/home/reid/projects/blast_waves/hdf5_dataset_low_res_1_simulation_per_file_10_chunks", normalize=True)
     dataloader = DataLoader(
     dataset,
     batch_size=1,

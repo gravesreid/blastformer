@@ -45,7 +45,7 @@ def test(args):
     model.eval()  # Set model to evaluation mode
 
 
-    simulation_to_visualize = 1215
+    simulation_to_visualize = 1101
 
     sample_embedding = []
     sample_times = []
@@ -77,7 +77,7 @@ def test(args):
                 sample_times.extend([t for t in times[:, -1]])
                 print(f'len(sample_embedding): {len(sample_embedding)}')
 
-            if len(sample_embedding) >= 890:
+            if len(sample_embedding) >= 82:
                 break
     clipped_sample_pressures = []
     times_list = []
@@ -173,7 +173,7 @@ def test(args):
 def launch():
     import argparse
     parser = argparse.ArgumentParser()
-    parser.add_argument('--run_name', type=str, default="fno_normalized_time_bundling_home_24_width_run")
+    parser.add_argument('--run_name', type=str, default="fno_low_res_normalized_time_bundling_10_modes_lab_24_width_run")
     parser.add_argument('--patience', type=int, default=10)
     parser.add_argument('--epochs', type=int, default=20)
     parser.add_argument('--batch_size', type=int, default=2)
@@ -185,7 +185,7 @@ def launch():
     parser.add_argument('--width', type=int, default=24)
     parser.add_argument('--cond_channels', type=int, default=31, help="Dimension of conditioning embedding (matches conditioning dimension[1])")
     parser.add_argument('--num_layers', type=int, default=4)
-    parser.add_argument('--dataset_path', type=str, default="/home/reid/projects/blast_waves/hdf5_dataset_1_simulation_per_file")
+    parser.add_argument('--dataset_path', type=str, default="/home/reid/projects/blast_waves/hdf5_dataset_low_res_1_simulation_per_file_10_chunks")
     parser.add_argument('--device', type=str, default="cuda")
     parser.add_argument('--lr', type=float, default=1e-4)
     args = parser.parse_args()
