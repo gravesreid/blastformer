@@ -95,7 +95,8 @@ class BlastDataset(Dataset):
             wall_3 = torch.tensor(f["wall_3"], dtype=torch.float32)
             number_of_timesteps = torch.tensor(f["number_of_timesteps"][()].item(), dtype=torch.int32)
             max_time = torch.tensor(f["max_time"][()].item(), dtype=torch.float32)
-            max_pressure = torch.tensor(f["max_pressure_grid"], dtype=torch.float32)
+            max_pressure = np.array(f["max_pressure_grid"], dtype=np.float32)
+            max_pressure = torch.tensor(max_pressure, dtype=torch.float32)
 
             # fetch consecutive timesteps
             end_idx = min(timestep_idx + 10, 90)

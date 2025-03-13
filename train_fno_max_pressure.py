@@ -89,9 +89,11 @@ def train(args):
             max_pressure = batch["max_pressure"].to(device)
             current_time = times[:, 0]
             conditioning = torch.cat([charge_center, charge_mass.unsqueeze(1), wall_1, wall_2, wall_3, current_time.unsqueeze(1)], dim=1)
-            outputs = model(conditioning)
-            loss = l1(outputs, max_pressure)
-            scaled_loss = scaledlp_loss(outputs, max_pressure, p=2, reduction="mean")
+            # make array of 0s for the input pressure
+            input_pressure = torch.zeros_like(max_pressure).unsqueeze(1)
+            outputs = model(input_pressure,conditioning)
+            loss = l1(outputs.squeeze(), max_pressure)
+            scaled_loss = scaledlp_loss(outputs.squeeze(), max_pressure, p=2, reduction="mean")
 
             optimizer.zero_grad()
             loss.backward()
@@ -131,9 +133,10 @@ def train(args):
                 val_max_pressure = val_batch["max_pressure"].to(device)
                 val_current_pressure = val_pressures[:, 0, :, :].unsqueeze(1)
                 val_current_time = val_times[:, 0]
+                input_pressure = torch.zeros_like(val_max_pressure).unsqueeze(1)
                 val_conditioning = torch.cat([val_charge_center, val_charge_mass.unsqueeze(1), val_wall_1, val_wall_2, val_wall_3, val_current_time.unsqueeze(1)], dim=1)
-                val_predicted_pressure = model(val_conditioning)
-                val_loss = l1(val_predicted_pressure, val_max_pressure)
+                val_predicted_pressure = model(input_pressure, val_conditioning)
+                val_loss = l1(val_predicted_pressure.squeeze(), val_max_pressure)
                 eval_model_loss += val_loss.item()
 
                 if j == 0:
@@ -191,7 +194,7 @@ def launch():
     parser.add_argument('--run_name', type=str, default="fno_home_max_pressure")
     parser.add_argument('--patience', type=int, default=10)
     parser.add_argument('--epochs', type=int, default=100)
-    parser.add_argument('--batch_size', type=int, default=256)
+    parser.add_argument('--batch_size', type=int, default=64)
     parser.add_argument('--warmup_epochs', type=int, default=1)
     parser.add_argument('--time_window', type=int, default=1, help="Number of channels for pressure input")
     parser.add_argument('--modes1', type=int, default=6)
