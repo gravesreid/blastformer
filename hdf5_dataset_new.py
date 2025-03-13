@@ -95,6 +95,7 @@ class BlastDataset(Dataset):
             wall_3 = torch.tensor(f["wall_3"], dtype=torch.float32)
             number_of_timesteps = torch.tensor(f["number_of_timesteps"][()].item(), dtype=torch.int32)
             max_time = torch.tensor(f["max_time"][()].item(), dtype=torch.float32)
+            max_pressure = torch.tensor(f["max_pressure_grid"], dtype=torch.float32)
 
             # fetch consecutive timesteps
             end_idx = min(timestep_idx + 10, 90)
@@ -124,7 +125,9 @@ class BlastDataset(Dataset):
             "number_of_timesteps": number_of_timesteps,
             "max_time": max_time,
             "times": times,
-            "pressures": pressures,}
+            "pressures": pressures,
+            "max_pressure": max_pressure
+            }
 
 
 def main():
@@ -138,11 +141,12 @@ def main():
 
     num_processed = 0
     pressures_list = []
+    max_pressure_list = []
     for batch in dataloader:
-        if num_processed >= 200:
+        if num_processed > 1000:
             break
+        print(f"Processing batch {num_processed}")
         simulation_number = batch["simulation_number"]
-        print(f"Simulation number: {simulation_number}")
         charge_center = batch["charge_center"]
         charge_mass = batch["charge_mass"]
         wall_1 = batch["wall_1"]
@@ -150,35 +154,38 @@ def main():
         wall_3 = batch["wall_3"]
         times = batch["times"]
         pressures = batch["pressures"]
+        max_pressure = batch["max_pressure"]
+        max_pressure_list.append(max_pressure)
         pressures_list.append(pressures)
         number_of_timesteps = batch["number_of_timesteps"]
         max_time = batch["max_time"]
-        print(f"number_of_timesteps: {number_of_timesteps}")
-        print(f"max_time: {max_time}")
-        print(f'charge_center: {charge_center}')
-        print(f'charge_mass: {charge_mass}')
-        print(f'wall_1 shape: {wall_1.shape}')
-        print(f'wall_2 shape: {wall_2.shape}')
-        print(f'wall_3 shape: {wall_3.shape}')
-        print(f'times shape: {times.shape}')
-        print(f'pressures shape: {pressures.shape}')
-        print(f'times: {times}')
         num_processed += 1
 
 
     fig, axes = plt.subplots(1, 1, figsize=(12, 4))
     print(f'pressures_list length: {len(pressures_list)}')
-    for time_batch in pressures_list:
-            time_batch = time_batch.squeeze(0)  # Remove batch dim -> Shape [10, 99, 99]
-            #for time_step in range(10):
-            #    axes.clear()  # Clear previous image
-            #    axes.imshow(time_batch[time_step], cmap="jet")
-            #    axes.set_title(f"Timestep {time_step + 1}")
-            #    plt.pause(0.1)  # Pause to animate
-            axes.clear()
-            axes.imshow(time_batch[0], cmap="jet")
-            axes.set_title(f"Timestep 1")
-            plt.pause(0.1)
+    plot_time = False
+    if plot_time:
+        for time_batch in pressures_list:
+                time_batch = time_batch.squeeze(0)  # Remove batch dim -> Shape [10, 99, 99]
+                #for time_step in range(10):
+                #    axes.clear()  # Clear previous image
+                #    axes.imshow(time_batch[time_step], cmap="jet")
+                #    axes.set_title(f"Timestep {time_step + 1}")
+                #    plt.pause(0.1)  # Pause to animate
+                axes.clear()
+                axes.imshow(time_batch[0], cmap="jet")
+                axes.set_title(f"Timestep 1")
+                plt.pause(0.1)
+
+        plt.show()
+
+    print(f'max_pressure_list length: {len(max_pressure_list)}')
+    for max_pressure in max_pressure_list:
+        print(f"max_pressure: {max_pressure}")
+        axes.clear()
+        axes.imshow(max_pressure.squeeze(0), cmap="jet")
+        plt.pause(0.1)
 
     plt.show()
 

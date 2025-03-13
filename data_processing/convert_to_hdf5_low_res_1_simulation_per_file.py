@@ -70,6 +70,7 @@ def convert_simulation_to_hdf5(sim_dir, output_hdf5, probe_positions):
         # only take every 10th timestep
         all_pressures = np.array(pressures, dtype=np.float32)
         max_pressure_grid = np.max(all_pressures, axis=0)
+        print(f'max_pressure_grid shape: {max_pressure_grid.shape}')
         pressures = pressures[::10]
         times = times[::10]
         times = np.array(times, dtype=np.float32)
@@ -88,8 +89,8 @@ def convert_simulation_to_hdf5(sim_dir, output_hdf5, probe_positions):
             hdf5_file.create_dataset("charge_center", data=charge_center)
             hdf5_file.create_dataset("charge_mass", data=charge_mass)
 
-            hdf5_file.create_dataset("times", data=times, shape=(90,), chunks=(10,))
-            hdf5_file.create_dataset("pressures", data=pressures, shape=(90, 99, 99), chunks=(10, 99, 99))
+            hdf5_file.create_dataset("times", data=times, shape=(90,), chunks=(90,))
+            hdf5_file.create_dataset("pressures", data=pressures, shape=(90, 99, 99), chunks=(90, 99, 99))
 
             hdf5_file.create_dataset("probe_positions", data=probe_positions, shape=(99, 99, 3))
             hdf5_file.create_dataset("max_pressure_grid", data=max_pressure_grid, shape=(99, 99))
