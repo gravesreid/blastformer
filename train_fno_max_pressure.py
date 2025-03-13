@@ -71,6 +71,8 @@ def train(args):
 
     steps_forward = 1
 
+    grid_size = args.grid_size
+
     for epoch in range(args.epochs):
         logging.info(f"Starting epoch {epoch}:")
         pbar = tqdm(training_dataloader)
@@ -80,18 +82,18 @@ def train(args):
 
         model.train()
         for i, batch in enumerate(pbar):
-            charge_center = batch["charge_center"].to(device)
             charge_mass = batch["charge_mass"].to(device)
+            charge_mass_expanded = charge_mass.view(-1, 1, 1, 1).expand(-1, -1, grid_size, grid_size)
+            charge_center = batch["charge_center"].to(device)
             wall_1 = batch["wall_1"].to(device)
             wall_2 = batch["wall_2"].to(device)
             wall_3 = batch["wall_3"].to(device)
-            times = batch["times"].to(device)
             max_pressure = batch["max_pressure"].to(device)
-            current_time = times[:, 0]
-            conditioning = torch.cat([charge_center, charge_mass.unsqueeze(1), wall_1, wall_2, wall_3, current_time.unsqueeze(1)], dim=1)
-            # make array of 0s for the input pressure
-            input_pressure = torch.zeros_like(max_pressure).unsqueeze(1)
-            outputs = model(input_pressure,conditioning)
+            conditioning = torch.cat([charge_center, wall_1, wall_2, wall_3], dim=1)
+            # make grid with charge mass in one channel and charge center in the other
+            model_input = charge_mass_expanded
+
+            outputs = model(model_input,conditioning)
             loss = l1(outputs.squeeze(), max_pressure)
             scaled_loss = scaledlp_loss(outputs.squeeze(), max_pressure, p=2, reduction="mean")
 
@@ -125,17 +127,16 @@ def train(args):
             for j, val_batch in enumerate(validation_dataloader):
                 val_charge_center = val_batch["charge_center"].to(device)
                 val_charge_mass = val_batch["charge_mass"].to(device)
+                val_charge_mass_expanded = val_charge_mass.view(-1, 1, 1, 1).expand(-1, -1, grid_size, grid_size)
                 val_wall_1 = val_batch["wall_1"].to(device)
                 val_wall_2 = val_batch["wall_2"].to(device)
                 val_wall_3 = val_batch["wall_3"].to(device)
-                val_times = val_batch["times"].to(device)
                 val_pressures = val_batch["pressures"].to(device)
                 val_max_pressure = val_batch["max_pressure"].to(device)
                 val_current_pressure = val_pressures[:, 0, :, :].unsqueeze(1)
-                val_current_time = val_times[:, 0]
-                input_pressure = torch.zeros_like(val_max_pressure).unsqueeze(1)
-                val_conditioning = torch.cat([val_charge_center, val_charge_mass.unsqueeze(1), val_wall_1, val_wall_2, val_wall_3, val_current_time.unsqueeze(1)], dim=1)
-                val_predicted_pressure = model(input_pressure, val_conditioning)
+                val_conditioning = torch.cat([val_charge_center, val_wall_1, val_wall_2, val_wall_3, ], dim=1)
+                model_input = val_charge_mass_expanded
+                val_predicted_pressure = model(model_input, val_conditioning)
                 val_loss = l1(val_predicted_pressure.squeeze(), val_max_pressure)
                 eval_model_loss += val_loss.item()
 
@@ -155,7 +156,10 @@ def train(args):
 
         # visualize validation predictions
         if vis_inputs is not None:
-            visualize_results(vis_inputs[0][0], vis_targets[0][0], vis_predictions[0][0], args.run_name, epoch)
+            print(f'vis_inputs shape: {vis_inputs.shape}')
+            print(f'vis_targets shape: {vis_targets.shape}')
+            print(f'vis_predictions shape: {vis_predictions.shape}')
+            visualize_results(vis_inputs[0][0], vis_targets[0], vis_predictions[0][0], args.run_name, epoch)
 
         # Early stopping
         if epoch_val_loss < best_loss:
@@ -191,7 +195,7 @@ def train(args):
 def launch():
     import argparse
     parser = argparse.ArgumentParser()
-    parser.add_argument('--run_name', type=str, default="fno_home_max_pressure")
+    parser.add_argument('--run_name', type=str, default="fno_lab_max_pressure")
     parser.add_argument('--patience', type=int, default=10)
     parser.add_argument('--epochs', type=int, default=100)
     parser.add_argument('--batch_size', type=int, default=64)
@@ -200,11 +204,12 @@ def launch():
     parser.add_argument('--modes1', type=int, default=6)
     parser.add_argument('--modes2', type=int, default=6)
     parser.add_argument('--width', type=int, default=24)
-    parser.add_argument('--cond_channels', type=int, default=23, help="Dimension of conditioning embedding (matches conditioning dimension[1])")
+    parser.add_argument('--cond_channels', type=int, default=21, help="Dimension of conditioning embedding (matches conditioning dimension[1])")
     parser.add_argument('--num_layers', type=int, default=4)
     parser.add_argument('--dataset_path', type=str, default="/home/reid/projects/blast_waves/hdf5_dataset_low_res_1_simulation_per_file_10_chunks")
     parser.add_argument('--device', type=str, default="cuda")
     parser.add_argument('--lr', type=float, default=1e-4)
+    parser.add_argument('--grid_size', type=int, default=99)
     args = parser.parse_args()
     train(args)
 

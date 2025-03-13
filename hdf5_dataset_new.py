@@ -35,9 +35,9 @@ class BlastDataset(Dataset):
 
         if normalize:
             if os.path.exists(self.normalization_file):
-                self.mean, self.std = self._load_normalization()
+                self.mean, self.std, self.max_mean, self.max_std = self._load_normalization()
             else:
-                self.mean, self.std = self._compute_normalization()
+                self.mean, self.std, self.max_mean, self.max_std = self._compute_normalization()
 
 
     def _compute_normalization(self):
@@ -45,20 +45,30 @@ class BlastDataset(Dataset):
         total_sum = 0.0
         total_sq_sum = 0.0
         num_elements = 0
+        max_pressure_sum = 0.0
+        max_pressure_sq_sum = 0.0
+        max_pressure_elements = 0
 
         for sim_path in self.file_list:
             with h5py.File(sim_path, "r") as f:
                 for timestep in f.keys():
-                    pressure = f[timestep]["source_pressure"][:]
+                    pressure = f[timestep]["pressures"][:]
+                    print(f"pressure shape: {pressure.shape}")
                     total_sum += pressure.sum()
                     total_sq_sum += (pressure ** 2).sum()
                     num_elements += pressure.size
+                    max_pressure = f[timestep]["max_pressure_grid"][:]
+                    max_pressure_sum += max_pressure.sum()
+                    max_pressure_sq_sum += (max_pressure ** 2).sum()
+                    max_pressure_elements += max_pressure.size
 
         mean = total_sum / num_elements
         std = ((total_sq_sum / num_elements) - (mean ** 2)) ** 0.5
+        max_pressure_mean = max_pressure_sum / max_pressure_elements
+        max_pressure_std = ((max_pressure_sq_sum / max_pressure_elements) - (max_pressure_mean ** 2)) ** 0.5
         print(f"Computed Normalization -> Mean: {mean:.6f}, Std: {std:.6f}")
         with open(self.normalization_file, 'w') as f:
-            json.dump({"mean": float(mean), "std": float(std)}, f)
+            json.dump({"mean": float(mean), "std": float(std), "max_mean": float(max_pressure_mean), "max_std": float(max_pressure_std)}, f)
         print(f"Saved normalization parameters to {self.normalization_file}")
         return mean, std
     
@@ -69,7 +79,7 @@ class BlastDataset(Dataset):
         with open(self.normalization_file, 'r') as f:
             params = json.load(f)
         print(f"Loaded normalization parameters from {self.normalization_file}")
-        return params["mean"], params["std"]
+        return params["mean"], params["std"], params["max_mean"], params["max_std"]
 
     def __len__(self):
     # Each file gives you (90 - 10 + 1) possible samples
@@ -106,6 +116,7 @@ class BlastDataset(Dataset):
 
             if self.normalize:
                 pressures = (pressures - self.mean) / self.std
+                max_pressure = (max_pressure - self.max_mean) / self.max_std
             # max time value is 0.0075, so we can normalize the times by dividing by max time
             times = times / max_time
 
