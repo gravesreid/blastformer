@@ -23,12 +23,12 @@ def train(args):
     setup_logging(args.run_name)
     device = args.device
 
-    training_dataset = BlastDataset(args.dataset_path, split="train", normalize=True)
+    training_dataset = BlastDataset(args.dataset_path, split="train", normalize=False)
     training_dataloader = DataLoader(training_dataset, batch_size=args.batch_size, shuffle=True, num_workers=min(16, os.cpu_count() - 1))
     l = len(training_dataloader)
 
     validation_dataset = BlastDataset(args.dataset_path, split="val", normalize=True)
-    validation_dataloader = DataLoader(validation_dataset, batch_size=args.batch_size, shuffle=True, num_workers=min(16, os.cpu_count() - 1))
+    validation_dataloader = DataLoader(validation_dataset, batch_size=args.batch_size, shuffle=False, num_workers=min(16, os.cpu_count() - 1))
     if len(validation_dataloader) == 0:
         logging.error("Validation dataloader is empty. Check the dataset path.")
         return
@@ -88,9 +88,11 @@ def train(args):
             wall_1 = batch["wall_1"].to(device)
             wall_2 = batch["wall_2"].to(device)
             wall_3 = batch["wall_3"].to(device)
+            pressures = batch["pressures"].to(device)
             max_pressure = batch["max_pressure"].to(device)
             conditioning = torch.cat([charge_center, wall_1, wall_2, wall_3], dim=1)
             # make grid with charge mass in one channel and charge center in the other
+            #model_input = pressures[:, 0, :, :].unsqueeze(1)
             model_input = charge_mass_expanded
 
             outputs = model(model_input,conditioning)
@@ -134,16 +136,17 @@ def train(args):
                 val_pressures = val_batch["pressures"].to(device)
                 val_max_pressure = val_batch["max_pressure"].to(device)
                 val_current_pressure = val_pressures[:, 0, :, :].unsqueeze(1)
-                val_conditioning = torch.cat([val_charge_center, val_wall_1, val_wall_2, val_wall_3, ], dim=1)
+                val_conditioning = torch.cat([ val_charge_center, val_wall_1, val_wall_2, val_wall_3, ], dim=1)
+                #model_input = val_pressures[:, 0, :, :].unsqueeze(1)
                 model_input = val_charge_mass_expanded
                 val_predicted_pressure = model(model_input, val_conditioning)
                 val_loss = l1(val_predicted_pressure.squeeze(), val_max_pressure)
                 eval_model_loss += val_loss.item()
 
                 if j == 0:
-                    vis_inputs = val_current_pressure
                     vis_targets = val_max_pressure
                     vis_predictions = val_predicted_pressure
+                    vis_error = torch.abs(val_max_pressure - val_predicted_pressure)
 
             epoch_val_loss = eval_model_loss / len(validation_dataloader)
             validation_loss.append(epoch_val_loss)
@@ -155,11 +158,11 @@ def train(args):
             logging.info(f"Epoch {epoch} - Training Loss: {epoch_train_loss}, Validation Loss: {epoch_val_loss}")
 
         # visualize validation predictions
-        if vis_inputs is not None:
-            print(f'vis_inputs shape: {vis_inputs.shape}')
+        if vis_targets is not None:
+            print(f'vis_error shape: {vis_error.shape}')
             print(f'vis_targets shape: {vis_targets.shape}')
             print(f'vis_predictions shape: {vis_predictions.shape}')
-            visualize_results(vis_inputs[0][0], vis_targets[0], vis_predictions[0][0], args.run_name, epoch)
+            visualize_results(vis_error[0][0], vis_targets[0], vis_predictions[0][0], args.run_name, epoch)
 
         # Early stopping
         if epoch_val_loss < best_loss:
@@ -195,7 +198,7 @@ def train(args):
 def launch():
     import argparse
     parser = argparse.ArgumentParser()
-    parser.add_argument('--run_name', type=str, default="fno_lab_max_pressure")
+    parser.add_argument('--run_name', type=str, default="fno_home_max_pressure")
     parser.add_argument('--patience', type=int, default=10)
     parser.add_argument('--epochs', type=int, default=100)
     parser.add_argument('--batch_size', type=int, default=64)

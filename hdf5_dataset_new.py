@@ -51,16 +51,15 @@ class BlastDataset(Dataset):
 
         for sim_path in self.file_list:
             with h5py.File(sim_path, "r") as f:
-                for timestep in f.keys():
-                    pressure = f[timestep]["pressures"][:]
-                    print(f"pressure shape: {pressure.shape}")
+                max_pressure = f["max_pressure_grid"][:]
+                max_pressure_sum += max_pressure.sum()
+                max_pressure_sq_sum += (max_pressure ** 2).sum()
+                max_pressure_elements += max_pressure.size
+                pressures = f["pressures"][:]
+                for pressure in pressures:
                     total_sum += pressure.sum()
                     total_sq_sum += (pressure ** 2).sum()
                     num_elements += pressure.size
-                    max_pressure = f[timestep]["max_pressure_grid"][:]
-                    max_pressure_sum += max_pressure.sum()
-                    max_pressure_sq_sum += (max_pressure ** 2).sum()
-                    max_pressure_elements += max_pressure.size
 
         mean = total_sum / num_elements
         std = ((total_sq_sum / num_elements) - (mean ** 2)) ** 0.5
@@ -70,7 +69,7 @@ class BlastDataset(Dataset):
         with open(self.normalization_file, 'w') as f:
             json.dump({"mean": float(mean), "std": float(std), "max_mean": float(max_pressure_mean), "max_std": float(max_pressure_std)}, f)
         print(f"Saved normalization parameters to {self.normalization_file}")
-        return mean, std
+        return mean, std, max_pressure_mean, max_pressure_std
     
     def _load_normalization(self):
         """
@@ -83,12 +82,12 @@ class BlastDataset(Dataset):
 
     def __len__(self):
     # Each file gives you (90 - 10 + 1) possible samples
-        return len(self.file_list) * (90 - 10 + 1)
+        return len(self.file_list) #* (90 - 10 + 1)
 
 
     def __getitem__(self, idx):
-        window_size = 10
-        valid_starts = 90 - window_size + 1
+        window_size = 30
+        valid_starts = 30 - window_size + 1
         sim_idx = idx // valid_starts
         timestep_idx = idx % valid_starts
         sample_path = self.file_list[sim_idx]
@@ -109,7 +108,7 @@ class BlastDataset(Dataset):
             max_pressure = torch.tensor(max_pressure, dtype=torch.float32)
 
             # fetch consecutive timesteps
-            end_idx = min(timestep_idx + 10, 90)
+            end_idx = min(timestep_idx + 30, 30)
             times = torch.tensor(f["times"][timestep_idx:end_idx], dtype=torch.float32)
             pressures = np.array(f["pressures"][timestep_idx:end_idx], dtype=np.float32)
             pressures = torch.tensor(pressures, dtype=torch.float32)
@@ -143,7 +142,7 @@ class BlastDataset(Dataset):
 
 
 def main():
-    dataset = BlastDataset("/home/reid/projects/blast_waves/hdf5_dataset_low_res_1_simulation_per_file_10_chunks", normalize=True)
+    dataset = BlastDataset("/home/reid/projects/blast_waves/hdf5_dataset_ultra_low_res_1_simulation_per_file", normalize=True)
     dataloader = DataLoader(
     dataset,
     batch_size=1,
@@ -166,6 +165,7 @@ def main():
         wall_3 = batch["wall_3"]
         times = batch["times"]
         pressures = batch["pressures"]
+        print(f'pressures shape: {pressures.shape}')
         max_pressure = batch["max_pressure"]
         max_pressure_list.append(max_pressure)
         pressures_list.append(pressures)
@@ -176,15 +176,15 @@ def main():
 
     fig, axes = plt.subplots(1, 1, figsize=(12, 4))
     print(f'pressures_list length: {len(pressures_list)}')
-    plot_time = False
+    plot_time = True
     if plot_time:
         for time_batch in pressures_list:
-                time_batch = time_batch.squeeze(0)  # Remove batch dim -> Shape [10, 99, 99]
-                #for time_step in range(10):
-                #    axes.clear()  # Clear previous image
-                #    axes.imshow(time_batch[time_step], cmap="jet")
-                #    axes.set_title(f"Timestep {time_step + 1}")
-                #    plt.pause(0.1)  # Pause to animate
+                time_batch = time_batch.squeeze(0)  # Remove batch dim -> Shape [30, 99, 99]
+                for time_step in range(30):
+                    axes.clear()  # Clear previous image
+                    axes.imshow(time_batch[time_step], cmap="jet")
+                    axes.set_title(f"Timestep {time_step + 1}")
+                    plt.pause(0.1)  # Pause to animate
                 axes.clear()
                 axes.imshow(time_batch[0], cmap="jet")
                 axes.set_title(f"Timestep 1")
