@@ -96,7 +96,7 @@ class BlastFormer(nn.Module):
 
         # Project to output dimension
         output = self.output_proj(output)
-        reconstructed_pressure = self.unpatch_proj(output[:, :-3, :])
+        reconstructed_pressure = self.unpatch_proj(output[:, :-2, :])
         return reconstructed_pressure
     
 class BlastFormer2Channel(nn.Module):

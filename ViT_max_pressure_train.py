@@ -14,7 +14,7 @@ import math
 import matplotlib.pyplot as plt
 from utils import *
 from hdf5_dataset_new import *
-from blastformer_transformer import *
+from blastformer_transformer_max_pressure import *
 
 logging.basicConfig(format="%(asctime)s - %(levelname)s: %(message)s", level=logging.INFO, datefmt="%I:%M:%S")
 
@@ -50,7 +50,7 @@ def train(args):
     logger = SummaryWriter(os.path.join("runs", args.run_name))
 
     # Wandb setup
-    wandb.init(project='blastformer', name=args.run_name, config=args)
+    wandb.init(project='ViT_max_pressure', name=args.run_name, config=args)
     config = wandb.config
     config.epochs = args.epochs
     config.batch_size = args.batch_size
@@ -84,8 +84,8 @@ def train(args):
             charge_data = torch.cat([charge_center, charge_mass.unsqueeze(1)], dim=1)
             wall_locations = torch.cat([wall_1, wall_2, wall_3], dim=1)
             predicted_pressure = model(initial_pressure.unsqueeze(1), charge_data, wall_locations)
-            loss = l1(predicted_pressure, max_pressure)
-            scaled_loss = scaledlp_loss(predicted_pressure, max_pressure, p=2, reduction="mean")
+            loss = l1(predicted_pressure.squeeze(1), max_pressure)
+            scaled_loss = scaledlp_loss(predicted_pressure.squeeze(1), max_pressure, p=2, reduction="mean")
 
 
             optimizer.zero_grad()
@@ -108,7 +108,7 @@ def train(args):
 
         epoch_train_loss /= len(training_dataloader)
         training_loss.append(epoch_train_loss)
-        scheduler.step(epoch_train_loss)
+        scheduler.step()
 
     # Validation
     model.eval()
@@ -138,8 +138,8 @@ def train(args):
             val_charge_data = torch.cat([val_charge_center, val_charge_mass.unsqueeze(1)], dim=1)
             val_wall_locations = torch.cat([val_wall_1, val_wall_2, val_wall_3], dim=1)
             val_predicted_pressure = model(val_initial_pressure.unsqueeze(1), val_charge_data, val_wall_locations)
-            val_loss = l1(val_predicted_pressure, val_max_pressure)
-            scaled_val_loss = scaledlp_loss(val_predicted_pressure, val_max_pressure, p=2, reduction="mean")
+            val_loss = l1(val_predicted_pressure.squeeze(1), val_max_pressure)
+            scaled_val_loss = scaledlp_loss(val_predicted_pressure.squeeze(1), val_max_pressure, p=2, reduction="mean")
 
             eval_model_loss += val_loss.item()
             eval_scaled_loss += scaled_val_loss.item()
@@ -206,7 +206,7 @@ def train(args):
 def launch():
     import argparse
     parser = argparse.ArgumentParser()
-    parser.add_argument('--run_name', type=str, default="lucid_blastformer_lab_ultra_low_res")
+    parser.add_argument('--run_name', type=str, default="ViT_max_pressure_home")
     parser.add_argument('--patience', type=int, default=10)
     parser.add_argument('--epochs', type=int, default=10)
     parser.add_argument('--batch_size', type=int, default=48)
