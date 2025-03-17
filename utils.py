@@ -95,27 +95,52 @@ def scaledlp_loss(input: torch.Tensor, target: torch.Tensor, p: int = 2, reducti
 
 def visualize_results(input_pressure, target_pressure, predicted_pressure, run_name, epoch):
     """Visualizes and saves pressure field comparisons for validation."""
-    num_samples = min(3, input_pressure.shape[0])
-    fig, axes = plt.subplots(num_samples, 3, figsize=(12, 4 * num_samples))
+    num_samples = min(input_pressure.shape[0] - input_pressure.shape[0] % 9, input_pressure.shape[0])
 
-    for i in range(num_samples):
-        axes[i, 0].imshow(input_pressure[i,:,:].cpu().numpy(), cmap="jet")
-        axes[i, 0].set_title("Input Pressure")
+    for i in range(0, num_samples, 3):
+        fig, axes = plt.subplots(3, 3, figsize=(12, 12))
+        for j in range(3):
+            axes[j, 0].imshow(input_pressure[i+j,:,:].cpu().numpy(), cmap="jet")
+            axes[j, 0].set_title(f"Input Pressure {j+i}")
 
-        axes[i, 1].imshow(target_pressure[i,:,:].cpu().numpy(), cmap="jet")
-        axes[i, 1].set_title("Target Pressure")
+            axes[j, 1].imshow(target_pressure[i+j,:,:].cpu().numpy(), cmap="jet")
+            axes[j, 1].set_title(f"Target Pressure {j+i}")
 
-        axes[i, 2].imshow(predicted_pressure[i,:,:].cpu().numpy(), cmap="jet")
-        axes[i, 2].set_title("Predicted Pressure")
+            axes[j, 2].imshow(predicted_pressure[i+j,:,:].cpu().numpy(), cmap="jet")
+            axes[j, 2].set_title(f"Predicted Pressure {j+i}")
 
-    plt.tight_layout()
-    vis_path = os.path.join("results", run_name, f"validation_epoch_{epoch}.jpg")
-    os.makedirs(os.path.dirname(vis_path), exist_ok=True)
-    plt.savefig(vis_path)
-    wandb.log({f"Validation Predictions Epoch {epoch}": wandb.Image(vis_path)})
-    logging.info(f"Saved validation visualization to {vis_path}")
-    plt.close(fig)
+        plt.tight_layout()
+        vis_path = os.path.join("results", run_name, f"validation_epoch_{epoch}_sample{i}_to_{i+3}.jpg")
+        os.makedirs(os.path.dirname(vis_path), exist_ok=True)
+        plt.savefig(vis_path)
+        wandb.log({f"Validation Predictions Epoch {epoch} timestep {i} to {i+3}": wandb.Image(vis_path)})
+        logging.info(f"Saved validation visualization to {vis_path}")
+        plt.close(fig)
 
+def visualize_max_pressure(true_max_pressure, predicted_max_pressure, run_name, epoch):
+    """Visualizes and saves pressure field comparisons for validation."""
+    num_samples = min(true_max_pressure.shape[0] - true_max_pressure.shape[0] % 9, true_max_pressure.shape[0])
+
+    for i in range(0, num_samples, 3):
+        fig, axes = plt.subplots(3, 3, figsize=(12, 12))
+        for j in range(3):
+            true_max = true_max_pressure[i+j,:,:].cpu().numpy()
+            predicted_max = predicted_max_pressure[i+j,:,:].cpu().numpy()
+            error = np.abs(true_max - predicted_max)
+            axes[j, 0].imshow(true_max, cmap="jet")
+            axes[j, 0].set_title(f"True Max Pressure {j+i}")
+            axes[j, 1].imshow(predicted_max, cmap="jet")
+            axes[j, 1].set_title(f"Predicted Max Pressure {j+i}")
+            axes[j, 2].imshow(error, cmap="jet")
+            axes[j, 2].set_title(f"Error {j+i}")
+
+        plt.tight_layout()
+        vis_path = os.path.join("results", run_name, f"validation_epoch_{epoch}_sample{i}_to_{i+3}.jpg")
+        os.makedirs(os.path.dirname(vis_path), exist_ok=True)
+        plt.savefig(vis_path)
+        wandb.log({f"Validation Predictions Epoch {epoch} timestep {i} to {i+3}": wandb.Image(vis_path)})
+        logging.info(f"Saved validation visualization to {vis_path}")
+        plt.close(fig)
 
 def plot_reconstruction_all(data_sample, reconstructed_pressures, index=0, save_dir=None, show=False):
     """

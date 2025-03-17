@@ -144,6 +144,7 @@ def train(args):
                 num_predicted_val += num_batch_predictions
                 batch_loss_sum = 0.0
                 batch_scaled_loss_sum = 0.0
+                vis_inputs, vis_targets, vis_predictions = [], [], []
 
                 for t in range(val_pressures.shape[1] - 1):
                     val_current_pressure = val_pressures[:, t, :, :].unsqueeze(1)
@@ -163,12 +164,12 @@ def train(args):
                     batch_scaled_loss_sum += scaled_val_loss.item()
 
                     # Store first batch for visualization
-                    if j == 0 and t == 0:
-                        vis_inputs = val_current_pressure
-                        vis_targets = val_next_pressures
-                        vis_predictions = val_predicted_pressure
+                    if j == 0:
+                        vis_inputs.append(val_current_pressure.squeeze(1))
+                        vis_targets.append(val_next_pressures.squeeze(1))
+                        vis_predictions.append(val_predicted_pressure.squeeze(1))
                         print(f"Visualizing first batch of validation predictions.")
-                        print(f"Inputs shape: {vis_inputs.shape}, Targets shape: {vis_targets.shape}, Predictions shape: {vis_predictions.shape}")
+                        print(f"Inputs shape: {vis_inputs[0].shape}, Targets shape: {vis_targets[0].shape}, Predictions shape: {vis_predictions[0].shape}")
 
                 avg_batch_loss = batch_loss_sum / num_batch_predictions
                 avg_batch_scaled_loss = batch_scaled_loss_sum / num_batch_predictions
@@ -196,7 +197,8 @@ def train(args):
 
         # Visualize validation predictions
         if vis_inputs is not None:
-            visualize_results(vis_inputs, vis_targets, vis_predictions, args.run_name, epoch)
+            for t in range(len(vis_inputs)):
+                visualize_results(vis_inputs[t], vis_targets[t], vis_predictions[t], args.run_name, epoch)
 
         # Early stopping
         if epoch_val_loss < best_loss:

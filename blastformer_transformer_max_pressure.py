@@ -7,29 +7,6 @@ from torch.utils.data import DataLoader
 import matplotlib.pyplot as plt
 import numpy as np
 
-class PatchEmbed(nn.Module):
-    def __init__(self, in_channels, embed_dim, patch_size):
-        super().__init__()
-        self.patch_size = patch_size
-        self.proj = nn.Sequential(
-            Rearrange("b c (h p1) (w p2) -> b (h w) (p1 p2 c)", p1=patch_size, p2=patch_size),
-            nn.Linear(patch_size * patch_size * in_channels, embed_dim)
-        )
-    def forward(self, x):
-        return self.proj(x)
-    
-class UnpatchEmbed(nn.Module):
-    def __init__(self, in_channels, embed_dim, patch_size, img_size):
-        super().__init__()
-        self.patch_size = patch_size
-        self.h, self.w = img_size // patch_size, img_size // patch_size
-        self.proj = nn.Sequential(
-            nn.Linear(embed_dim, patch_size * patch_size * in_channels),
-            Rearrange("b (h w) (p1 p2 c) -> b c (h p1) (w p2)", 
-                      p1=patch_size, p2=patch_size, h=self.h, w=self.w)
-        )
-    def forward(self, x):
-        return self.proj(x)
 
 class CFDFeatureEmbedder(nn.Module):
     """
@@ -47,23 +24,15 @@ class CFDFeatureEmbedder(nn.Module):
         """
         #print(f'x shape: {x.shape}')
         return self.projection(x)
+    
 
 class BlastFormer(nn.Module):
-    def __init__(self, input_dim, hidden_dim, num_layers, output_dim, patch_size):
+    def __init__(self, wall_dim, charge_dim, hidden_dim, num_layers, output_dim):
         super().__init__()
         # Initilize feature embedding layers
-        self.wall_embedder = CFDFeatureEmbedder(18, hidden_dim)
-        self.charge_embedder = CFDFeatureEmbedder(4, hidden_dim)
+        self.wall_embedder = CFDFeatureEmbedder(wall_dim, hidden_dim)
+        self.charge_embedder = CFDFeatureEmbedder(charge_dim, hidden_dim)
         
-
-
-        #self.seq_len = seq_len
-        self.patch_size = patch_size
-
-        # Input projection to match transformer hidden dimension
-        #self.patch_proj = nn.Linear(input_dim, hidden_dim)
-        self.patch_proj = PatchEmbed(1, hidden_dim, patch_size)
-
         # Transformer Encoder
         self.encoder_layer = nn.TransformerEncoderLayer(
             d_model=hidden_dim, nhead=8, dim_feedforward=hidden_dim * 4, batch_first=True
@@ -71,11 +40,11 @@ class BlastFormer(nn.Module):
         self.encoder = nn.TransformerEncoder(self.encoder_layer, num_layers=num_layers)
 
         # Output projection to predict pressures
-        self.output_proj = nn.Linear(hidden_dim, output_dim)
+        self.output_proj_1 = nn.Linear(hidden_dim, output_dim)
+        self.output_proj_2 = nn.Linear(output_dim*2, output_dim)
 
-        self.unpatch_proj = UnpatchEmbed(1, output_dim, patch_size, 99)
 
-    def forward(self, pressure, charge_data, wall_locations):
+    def forward(self, charge_data, wall_locations):
         """
         Args:
             src: Input tensor (encoder input) of shape (batch_size, seq_len, input_dim)
@@ -85,74 +54,22 @@ class BlastFormer(nn.Module):
         # Embed features
         wall_embedded = self.wall_embedder(wall_locations)
         charge_embedded = self.charge_embedder(charge_data)
-        projected_patch = self.patch_proj(pressure)
 
 
 
         # Combine features
-        src = torch.cat([projected_patch, charge_embedded.unsqueeze(1), wall_embedded.unsqueeze(1)], dim=1)
+        src = torch.cat([charge_embedded.unsqueeze(1), wall_embedded.unsqueeze(1)], dim=1)
         # pass through encoder
         output = self.encoder(src)
 
         # Project to output dimension
-        output = self.output_proj(output)
-        reconstructed_pressure = self.unpatch_proj(output[:, :-2, :])
+        output = self.output_proj_1(output)
+        # reshape from [batch_size, 2, output_dim] to [batch_size, output_dim*2]
+        output = output.reshape(output.shape[0], -1)
+        output = self.output_proj_2(output)
+        reconstructed_pressure = output.reshape(output.shape[0], 99, 99)
         return reconstructed_pressure
     
-class BlastFormer2Channel(nn.Module):
-    def __init__(self, input_dim, hidden_dim, num_layers, output_dim, patch_size):
-        super().__init__()
-        # Initilize feature embedding layers
-        self.wall_embedder = CFDFeatureEmbedder(6, hidden_dim)
-        self.charge_embedder = CFDFeatureEmbedder(7, hidden_dim)
-        self.time_embedder = CFDFeatureEmbedder(1, hidden_dim)
-        
-
-
-        #self.seq_len = seq_len
-        self.patch_size = patch_size
-
-        # Input projection to match transformer hidden dimension
-        #self.patch_proj = nn.Linear(input_dim, hidden_dim)
-        self.patch_proj = PatchEmbed(2, hidden_dim, patch_size)
-
-        # Transformer Encoder
-        self.encoder_layer = nn.TransformerEncoderLayer(
-            d_model=hidden_dim, nhead=8, dim_feedforward=hidden_dim * 4, batch_first=True
-        )
-        self.encoder = nn.TransformerEncoder(self.encoder_layer, num_layers=num_layers)
-
-        # Output projection to predict pressures
-        self.output_proj = nn.Linear(hidden_dim, output_dim)
-
-        self.unpatch_proj = UnpatchEmbed(2, output_dim, patch_size, 99)
-
-    def forward(self, pressure, charge_data, wall_locations, time):
-        """
-        Args:
-            src: Input tensor (encoder input) of shape (batch_size, seq_len, input_dim)
-        Returns:
-            Output tensor of shape (batch_size, seq_len, output_dim)
-        """
-        # Embed features
-        wall_embedded = self.wall_embedder(wall_locations)
-        charge_embedded = self.charge_embedder(charge_data)
-        time_embedded = self.time_embedder(time)
-        #patch = patchify_batch(pressure.squeeze(1), self.patch_size)
-        #projected_patch = self.patch_proj(patch)
-        projected_patch = self.patch_proj(pressure)
-
-
-        # Combine features
-        src = torch.cat([projected_patch, charge_embedded.unsqueeze(1), wall_embedded, time_embedded.unsqueeze(1)], dim=1)
-        # pass through encoder
-        output = self.encoder(src)
-
-        # Project to output dimension
-        output = self.output_proj(output)
-
-        reconstructed_pressure = self.unpatch_proj(output[:, :-5, :])
-        return reconstructed_pressure
     
 def main():
     input_dim = (99**2)//(11**2)
@@ -167,22 +84,15 @@ def main():
     print(model)
     dataset = BlastDataset("/home/reid/projects/blast_waves/hdf5_dataset", split="test", normalize=True)
     dataloader = DataLoader(dataset, batch_size=1, shuffle=False)
-    patchifier = PatchEmbed(1, output_dim, patch_size)
-    unpatcher = UnpatchEmbed(1, output_dim, patch_size, 99)
     original_pressures = []
     reconstructed_pressures = []
 
     for batch in dataloader:
         current_pressure = batch["source_pressure"]
         original_pressures.append(current_pressure)
-        patched_pressure = patchifier(current_pressure.unsqueeze(1))
-        print(f'patched_pressure shape: {patched_pressure.shape}')
         batch_patchified = patchify_batch(current_pressure, patch_size)
         print(f'patched_pressure shape: {batch_patchified.shape}')
         #reconstructed_pressure = unpatcher(patched_pressure)
-        reconstructed_pressure = unpatchify_batch(patched_pressure, patch_size, 99, 99)
-        print(f'reconstructed_pressure shape: {reconstructed_pressure.shape}')
-        reconstructed_pressures.append(reconstructed_pressure)
         if len(original_pressures) > max_samples_to_process:
             break
 
