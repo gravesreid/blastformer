@@ -78,46 +78,35 @@ def train(args):
             wall_3 = batch["wall_3"].to(device)
             times = batch["times"].to(device)
             pressures = batch["pressures"].to(device) # shape: (batch_size, 99,99)
+            max_pressure = batch["max_pressure"].to(device)
 
-            num_batch_predictions = pressures.shape[1] - 1
-            num_predicted += num_batch_predictions
-            batch_loss_sum = 0.0
-            for t in range(pressures.shape[1] - 1):
-                current_pressure = pressures[:, t, :, :].unsqueeze(1)
-                next_pressures = pressures[:, t + 1, :, :].unsqueeze(1)
-                current_time = times[:, t].unsqueeze(1)
-                charge_data = torch.cat([charge_center, charge_mass.unsqueeze(1)], dim=1)
-                wall_locations = torch.cat([wall_1, wall_2, wall_3], dim=1)
-                predicted_pressure = model(current_pressure, charge_data, wall_locations, current_time)
-                loss = l1(predicted_pressure, next_pressures)
-                scaled_loss = scaledlp_loss(predicted_pressure, next_pressures, p=2, reduction="mean")
+            initial_pressure = pressures[:, 0, :, :]
+            charge_data = torch.cat([charge_center, charge_mass.unsqueeze(1)], dim=1)
+            wall_locations = torch.cat([wall_1, wall_2, wall_3], dim=1)
+            predicted_pressure = model(initial_pressure.unsqueeze(1), charge_data, wall_locations)
+            loss = l1(predicted_pressure, max_pressure)
+            scaled_loss = scaledlp_loss(predicted_pressure, max_pressure, p=2, reduction="mean")
 
-                optimizer.zero_grad()
-                loss.backward()
-                optimizer.step()
 
-                epoch_train_loss += loss.item()
-                batch_loss_sum += loss.item()
+            optimizer.zero_grad()
+            loss.backward()
+            optimizer.step()
 
-                current_lr = optimizer.param_groups[0]['lr']
-                pbar.set_postfix(epoch_loss=loss.item(), scaled_loss=scaled_loss.item(), learning_rate=current_lr)
-                wandb.log({
-                    "Batch Loss": loss.item(),
-                    "scaled_loss": scaled_loss.item(),
-                    "Learning Rate": current_lr,
-                    "Epoch": epoch
-                })
-                logger.add_scalar(f"loss: {epoch}", loss.item(), global_step=epoch * l + i)
-                logger.add_scalar("learning_rate", current_lr, global_step=epoch * l + i)
-            
-            avg_batch_loss = batch_loss_sum / num_batch_predictions
+            epoch_train_loss += loss.item()
+
+            current_lr = optimizer.param_groups[0]['lr']
+            pbar.set_postfix(epoch_loss=loss.item(), scaled_loss=scaled_loss.item(), learning_rate=current_lr)
             wandb.log({
-                "Average Batch Loss": avg_batch_loss,
+                "Batch Loss": loss.item(),
+                "scaled_loss": scaled_loss.item(),
+                "Learning Rate": current_lr,
                 "Epoch": epoch
             })
-            logger.add_scalar("average_batch_loss", avg_batch_loss, global_step=epoch * l + i)
+            logger.add_scalar(f"loss: {epoch}", loss.item(), global_step=epoch * l + i)
+            logger.add_scalar("learning_rate", current_lr, global_step=epoch * l + i)
+            
 
-        epoch_train_loss /= num_predicted
+        epoch_train_loss /= len(training_dataloader)
         training_loss.append(epoch_train_loss)
         scheduler.step(epoch_train_loss)
 
@@ -139,46 +128,34 @@ def train(args):
             val_wall_3 = val_batch["wall_3"].to(device)
             val_times = val_batch["times"].to(device)
             val_pressures = val_batch["pressures"].to(device)  # shape: (batch_size, 99, 99)
+            val_max_pressure = val_batch["max_pressure"].to(device)
 
             num_batch_predictions = val_pressures.shape[1] - 1
             batch_loss_sum = 0.0
             batch_scaled_loss_sum = 0.0
 
-            for t in range(val_pressures.shape[1] - 1):
-                val_current_pressure = val_pressures[:, t, :, :].unsqueeze(1)
-                val_next_pressures = val_pressures[:, t + 1, :, :].unsqueeze(1)
-                val_current_time = val_times[:, t].unsqueeze(1)
-                val_charge_data = torch.cat([val_charge_center, val_charge_mass], dim=1)
-                val_wall_locations = torch.cat([val_wall_1, val_wall_2, val_wall_3], dim=1)
+            val_initial_pressure = val_pressures[:, 0, :, :]
+            val_charge_data = torch.cat([val_charge_center, val_charge_mass.unsqueeze(1)], dim=1)
+            val_wall_locations = torch.cat([val_wall_1, val_wall_2, val_wall_3], dim=1)
+            val_predicted_pressure = model(val_initial_pressure.unsqueeze(1), val_charge_data, val_wall_locations)
+            val_loss = l1(val_predicted_pressure, val_max_pressure)
+            scaled_val_loss = scaledlp_loss(val_predicted_pressure, val_max_pressure, p=2, reduction="mean")
 
-                val_predicted_pressure = model(val_current_pressure, val_charge_data, val_wall_locations, val_current_time)
+            eval_model_loss += val_loss.item()
+            eval_scaled_loss += scaled_val_loss.item()
+            batch_loss_sum += val_loss.item()
+            batch_scaled_loss_sum += scaled_val_loss.item()
 
-                val_loss = l1(val_predicted_pressure, val_next_pressures)
-                scaled_val_loss = scaledlp_loss(val_predicted_pressure, val_next_pressures, p=2, reduction="mean")
+            # Store first batch for visualization
+            if j == 0:
+                vis_inputs = val_initial_pressure
+                vis_targets = val_max_pressure
+                vis_predictions = val_predicted_pressure
 
-                eval_model_loss += val_loss.item()
-                eval_scaled_loss += scaled_val_loss.item()
-                batch_loss_sum += val_loss.item()
-                batch_scaled_loss_sum += scaled_val_loss.item()
 
-                # Store first batch for visualization
-                if j == 0 and t == 0:
-                    vis_inputs = val_current_pressure
-                    vis_targets = val_next_pressures
-                    vis_predictions = val_predicted_pressure
 
-            avg_batch_loss = batch_loss_sum / num_batch_predictions
-            avg_batch_scaled_loss = batch_scaled_loss_sum / num_batch_predictions
-
-            wandb.log({
-                "Validation Batch Loss": avg_batch_loss,
-                "Validation Scaled Loss": avg_batch_scaled_loss,
-                "Epoch": epoch
-            })
-            logger.add_scalar("validation_batch_loss", avg_batch_loss, global_step=epoch)
-
-    epoch_val_loss = eval_model_loss / num_predicted_val
-    epoch_val_scaled_loss = eval_scaled_loss / num_predicted_val
+    epoch_val_loss = eval_model_loss / len(validation_dataloader)
+    epoch_val_scaled_loss = eval_scaled_loss / len(validation_dataloader)
     validation_loss.append(epoch_val_loss)
 
     wandb.log({

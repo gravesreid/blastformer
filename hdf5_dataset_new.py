@@ -106,6 +106,8 @@ class BlastDataset(Dataset):
             max_time = torch.tensor(f["max_time"][()].item(), dtype=torch.float32)
             max_pressure = np.array(f["max_pressure_grid"], dtype=np.float32)
             max_pressure = torch.tensor(max_pressure, dtype=torch.float32)
+            probe_positions = np.array(f["probe_positions"], dtype=np.float32)
+            probe_positions = torch.tensor(probe_positions, dtype=torch.float32)
 
             # fetch consecutive timesteps
             end_idx = min(timestep_idx + 30, 30)
@@ -137,7 +139,8 @@ class BlastDataset(Dataset):
             "max_time": max_time,
             "times": times,
             "pressures": pressures,
-            "max_pressure": max_pressure
+            "max_pressure": max_pressure,
+            "probe_positions": probe_positions
             }
 
 

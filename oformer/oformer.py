@@ -1,8 +1,8 @@
 import torch
 import torch.nn.functional as F
 import lightning as L
-from oformer.decoder_module import IrregSTDecoder2D
-from oformer.encoder_module import IrregSTEncoder2D
+from oformer.decoder_module import PointWiseDecoder2DSimple
+from oformer.encoder_module import SpatialEncoder2D
 import wandb
 
 ######################
@@ -14,7 +14,7 @@ class OFormerModule(L.LightningModule):
                  modelconfig,
                  trainconfig,
                  normalizer=None,
-                 batch_size=1,
+                 batch_size=16,
                  accumulation_steps=1,
                  ckpt_path=None,
                  cond_dim = 10
@@ -28,8 +28,8 @@ class OFormerModule(L.LightningModule):
             torch.nn.Linear(cond_dim, cond_dim)
         )
 
-        self.encoder = IrregSTEncoder2D(**modelconfig["encoder"])
-        self.decoder = IrregSTDecoder2D(**modelconfig["decoder"])
+        self.encoder = SpatialEncoder2D(**modelconfig["encoder"])
+        self.decoder = PointWiseDecoder2DSimple(**modelconfig["decoder"])
         self.normalizer = normalizer
         self.batch_size = batch_size
         self.accumulation_steps = accumulation_steps
@@ -91,6 +91,8 @@ class OFormerModule(L.LightningModule):
         x = pressures[:, start_time]
         current_state = x
         for i in range(rollout_length):
+            print(f'current_state shape: {current_state.shape}')
+            print(f'pos shape: {pos.shape}')
             pred = self(current_state, pos)
             rolout_predictions.append(pred)
             current_state = pred

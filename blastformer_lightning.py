@@ -16,14 +16,14 @@ def main():
         modelconfig={
             "encoder": {
                 "input_channels": 1,
-                "time_window": 10,
                 "in_emb_dim": 64,
-                "out_chanels": 16,
+                "out_seq_emb_dim": 32,
                 "heads": 4,
                 "depth": 4,
+                "res": 32,
         },
         "decoder": {
-            "latent_channels": 16,
+            "latent_channels": 128,
             "out_channels": 1,
     },
         },
@@ -37,7 +37,7 @@ def main():
         },
     )
     # Load Dataset and Dataloader
-    root_dir = "/home/reid/projects/blast_waves/hdf5_dataset_1_simulation_per_file"
+    root_dir = "/home/reid/projects/blast_waves/hdf5_dataset_ultra_low_res_1_simulation_per_file"
     dataset = BlastDataset(root_dir)
     dataloader = torch.utils.data.DataLoader(
     dataset,

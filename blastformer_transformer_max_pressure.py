@@ -54,7 +54,6 @@ class BlastFormer(nn.Module):
         # Initilize feature embedding layers
         self.wall_embedder = CFDFeatureEmbedder(18, hidden_dim)
         self.charge_embedder = CFDFeatureEmbedder(4, hidden_dim)
-        self.time_embedder = CFDFeatureEmbedder(1, hidden_dim)
         
 
 
@@ -76,7 +75,7 @@ class BlastFormer(nn.Module):
 
         self.unpatch_proj = UnpatchEmbed(1, output_dim, patch_size, 99)
 
-    def forward(self, pressure, charge_data, wall_locations, time):
+    def forward(self, pressure, charge_data, wall_locations):
         """
         Args:
             src: Input tensor (encoder input) of shape (batch_size, seq_len, input_dim)
@@ -86,13 +85,12 @@ class BlastFormer(nn.Module):
         # Embed features
         wall_embedded = self.wall_embedder(wall_locations)
         charge_embedded = self.charge_embedder(charge_data)
-        time_embedded = self.time_embedder(time)
         projected_patch = self.patch_proj(pressure)
 
 
 
         # Combine features
-        src = torch.cat([projected_patch, charge_embedded.unsqueeze(1), wall_embedded.unsqueeze(1), time_embedded.unsqueeze(1)], dim=1)
+        src = torch.cat([projected_patch, charge_embedded.unsqueeze(1), wall_embedded.unsqueeze(1)], dim=1)
         # pass through encoder
         output = self.encoder(src)
 
