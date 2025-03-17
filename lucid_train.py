@@ -121,95 +121,98 @@ def train(args):
         training_loss.append(epoch_train_loss)
         scheduler.step(epoch_train_loss)
 
-    # Validation
-    model.eval()
-    eval_model_loss = 0
-    eval_scaled_loss = 0
-    num_predicted_val = 0
+        # Validation
+        model.eval()
+        eval_model_loss = 0
+        eval_scaled_loss = 0
+        num_predicted_val = 0
 
-    # Store the first batch for visualization
-    vis_inputs, vis_targets, vis_predictions = None, None, None
+        # Store the first batch for visualization
+        vis_inputs, vis_targets, vis_predictions = None, None, None
 
-    with torch.no_grad():
-        for j, val_batch in enumerate(validation_dataloader):
-            val_charge_center = val_batch["charge_center"].to(device)
-            val_charge_mass = val_batch["charge_mass"].to(device)
-            val_wall_1 = val_batch["wall_1"].to(device)
-            val_wall_2 = val_batch["wall_2"].to(device)
-            val_wall_3 = val_batch["wall_3"].to(device)
-            val_times = val_batch["times"].to(device)
-            val_pressures = val_batch["pressures"].to(device)  # shape: (batch_size, 99, 99)
+        with torch.no_grad():
+            for j, val_batch in enumerate(validation_dataloader):
+                val_charge_center = val_batch["charge_center"].to(device)
+                val_charge_mass = val_batch["charge_mass"].to(device)
+                val_wall_1 = val_batch["wall_1"].to(device)
+                val_wall_2 = val_batch["wall_2"].to(device)
+                val_wall_3 = val_batch["wall_3"].to(device)
+                val_times = val_batch["times"].to(device)
+                val_pressures = val_batch["pressures"].to(device)  # shape: (batch_size, 99, 99)
 
-            num_batch_predictions = val_pressures.shape[1] - 1
-            batch_loss_sum = 0.0
-            batch_scaled_loss_sum = 0.0
+                num_batch_predictions = val_pressures.shape[1] - 1
+                num_predicted_val += num_batch_predictions
+                batch_loss_sum = 0.0
+                batch_scaled_loss_sum = 0.0
 
-            for t in range(val_pressures.shape[1] - 1):
-                val_current_pressure = val_pressures[:, t, :, :].unsqueeze(1)
-                val_next_pressures = val_pressures[:, t + 1, :, :].unsqueeze(1)
-                val_current_time = val_times[:, t].unsqueeze(1)
-                val_charge_data = torch.cat([val_charge_center, val_charge_mass], dim=1)
-                val_wall_locations = torch.cat([val_wall_1, val_wall_2, val_wall_3], dim=1)
+                for t in range(val_pressures.shape[1] - 1):
+                    val_current_pressure = val_pressures[:, t, :, :].unsqueeze(1)
+                    val_next_pressures = val_pressures[:, t + 1, :, :].unsqueeze(1)
+                    val_current_time = val_times[:, t].unsqueeze(1)
+                    val_charge_data = torch.cat([val_charge_center, val_charge_mass.unsqueeze(1)], dim=1)
+                    val_wall_locations = torch.cat([val_wall_1, val_wall_2, val_wall_3], dim=1)
 
-                val_predicted_pressure = model(val_current_pressure, val_charge_data, val_wall_locations, val_current_time)
+                    val_predicted_pressure = model(val_current_pressure, val_charge_data, val_wall_locations, val_current_time)
 
-                val_loss = l1(val_predicted_pressure, val_next_pressures)
-                scaled_val_loss = scaledlp_loss(val_predicted_pressure, val_next_pressures, p=2, reduction="mean")
+                    val_loss = l1(val_predicted_pressure, val_next_pressures)
+                    scaled_val_loss = scaledlp_loss(val_predicted_pressure, val_next_pressures, p=2, reduction="mean")
 
-                eval_model_loss += val_loss.item()
-                eval_scaled_loss += scaled_val_loss.item()
-                batch_loss_sum += val_loss.item()
-                batch_scaled_loss_sum += scaled_val_loss.item()
+                    eval_model_loss += val_loss.item()
+                    eval_scaled_loss += scaled_val_loss.item()
+                    batch_loss_sum += val_loss.item()
+                    batch_scaled_loss_sum += scaled_val_loss.item()
 
-                # Store first batch for visualization
-                if j == 0 and t == 0:
-                    vis_inputs = val_current_pressure
-                    vis_targets = val_next_pressures
-                    vis_predictions = val_predicted_pressure
+                    # Store first batch for visualization
+                    if j == 0 and t == 0:
+                        vis_inputs = val_current_pressure
+                        vis_targets = val_next_pressures
+                        vis_predictions = val_predicted_pressure
+                        print(f"Visualizing first batch of validation predictions.")
+                        print(f"Inputs shape: {vis_inputs.shape}, Targets shape: {vis_targets.shape}, Predictions shape: {vis_predictions.shape}")
 
-            avg_batch_loss = batch_loss_sum / num_batch_predictions
-            avg_batch_scaled_loss = batch_scaled_loss_sum / num_batch_predictions
+                avg_batch_loss = batch_loss_sum / num_batch_predictions
+                avg_batch_scaled_loss = batch_scaled_loss_sum / num_batch_predictions
 
-            wandb.log({
-                "Validation Batch Loss": avg_batch_loss,
-                "Validation Scaled Loss": avg_batch_scaled_loss,
-                "Epoch": epoch
-            })
-            logger.add_scalar("validation_batch_loss", avg_batch_loss, global_step=epoch)
+                wandb.log({
+                    "Validation Batch Loss": avg_batch_loss,
+                    "Validation Scaled Loss": avg_batch_scaled_loss,
+                    "Epoch": epoch
+                })
+                logger.add_scalar("validation_batch_loss", avg_batch_loss, global_step=epoch)
 
-    epoch_val_loss = eval_model_loss / num_predicted_val
-    epoch_val_scaled_loss = eval_scaled_loss / num_predicted_val
-    validation_loss.append(epoch_val_loss)
+        epoch_val_loss = eval_model_loss / num_predicted_val
+        epoch_val_scaled_loss = eval_scaled_loss / num_predicted_val
+        validation_loss.append(epoch_val_loss)
 
-    wandb.log({
-        "Validation Loss": epoch_val_loss,
-        "Validation Scaled Loss": epoch_val_scaled_loss,
-        "Epoch": epoch
-    })
-    logger.add_scalar("validation_loss", epoch_val_loss, global_step=epoch)
-    logger.add_scalar("validation_scaled_loss", epoch_val_scaled_loss, global_step=epoch)
+        wandb.log({
+            "Validation Loss": epoch_val_loss,
+            "Validation Scaled Loss": epoch_val_scaled_loss,
+            "Epoch": epoch
+        })
+        logger.add_scalar("validation_loss", epoch_val_loss, global_step=epoch)
+        logger.add_scalar("validation_scaled_loss", epoch_val_scaled_loss, global_step=epoch)
 
-    logging.info(f"Epoch {epoch} - Training Loss: {epoch_train_loss}, Validation Loss: {epoch_val_loss}, Validation Scaled Loss: {epoch_val_scaled_loss}")
+        logging.info(f"Epoch {epoch} - Training Loss: {epoch_train_loss}, Validation Loss: {epoch_val_loss}, Validation Scaled Loss: {epoch_val_scaled_loss}")
 
-    # Visualize validation predictions
-    if vis_inputs is not None:
-        visualize_results(vis_inputs, vis_targets, vis_predictions, args.run_name, epoch)
+        # Visualize validation predictions
+        if vis_inputs is not None:
+            visualize_results(vis_inputs, vis_targets, vis_predictions, args.run_name, epoch)
 
-    # Early stopping
-    if epoch_val_loss < best_loss:
-        best_loss = epoch_val_loss
-        epochs_no_improve = 0
-        torch.save(model.state_dict(), os.path.join("models", args.run_name, "best_model.pt"))
-    else:
-        epochs_no_improve += 1
+        # Early stopping
+        if epoch_val_loss < best_loss:
+            best_loss = epoch_val_loss
+            epochs_no_improve = 0
+            torch.save(model.state_dict(), os.path.join("models", args.run_name, "best_model.pt"))
+        else:
+            epochs_no_improve += 1
 
-    if epochs_no_improve >= patience:
-        logging.info(f"Early stopping after {epoch} epochs.")
-        return
+        if epochs_no_improve >= patience:
+            logging.info(f"Early stopping after {epoch} epochs.")
+            return
 
-    current_lr = optimizer.param_groups[0]['lr']
-    logger.add_scalar("learning_rate", current_lr, global_step=epoch)
-    logging.info(f"Epoch {epoch} completed. Learning rate: {current_lr}, epochs no improvement: {epochs_no_improve}, best loss: {best_loss}")
+        current_lr = optimizer.param_groups[0]['lr']
+        logger.add_scalar("learning_rate", current_lr, global_step=epoch)
+        logging.info(f"Epoch {epoch} completed. Learning rate: {current_lr}, epochs no improvement: {epochs_no_improve}, best loss: {best_loss}")
 
     # Save the loss curves (training and validation)
     plt.figure()
@@ -234,7 +237,7 @@ def launch():
     parser.add_argument('--epochs', type=int, default=10)
     parser.add_argument('--batch_size', type=int, default=48)
     parser.add_argument('--patch_size', type=int, default=3)
-    parser.add_argument('--hidden_dim', type=int, default=512)
+    parser.add_argument('--hidden_dim', type=int, default=256)
     parser.add_argument('--num_layers', type=int, default=4)
     parser.add_argument('--seq_len', type=int, default=302)
     parser.add_argument('--dataset_path', type=str, default="/home/reid/projects/blast_waves/hdf5_dataset_ultra_low_res_1_simulation_per_file")
