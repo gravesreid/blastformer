@@ -80,7 +80,7 @@ def train(args):
             pressures = batch["pressures"].to(device) # shape: (batch_size, 99,99)
             max_pressure = batch["max_pressure"].to(device)
 
-            initial_pressure = pressures[:, 0, :, :]
+            initial_pressure = pressures[:, 1, :, :]
             charge_data = torch.cat([charge_center, charge_mass.unsqueeze(1)], dim=1)
             wall_locations = torch.cat([wall_1, wall_2, wall_3], dim=1)
             predicted_pressure = model(initial_pressure.unsqueeze(1), charge_data, wall_locations)
@@ -130,11 +130,7 @@ def train(args):
                 val_pressures = val_batch["pressures"].to(device)  # shape: (batch_size, 99, 99)
                 val_max_pressure = val_batch["max_pressure"].to(device)
 
-                num_batch_predictions = val_pressures.shape[1] - 1
-                batch_loss_sum = 0.0
-                batch_scaled_loss_sum = 0.0
-
-                val_initial_pressure = val_pressures[:, 0, :, :]
+                val_initial_pressure = val_pressures[:, 1, :, :]
                 val_charge_data = torch.cat([val_charge_center, val_charge_mass.unsqueeze(1)], dim=1)
                 val_wall_locations = torch.cat([val_wall_1, val_wall_2, val_wall_3], dim=1)
                 val_predicted_pressure = model(val_initial_pressure.unsqueeze(1), val_charge_data, val_wall_locations)
@@ -143,8 +139,6 @@ def train(args):
 
                 eval_model_loss += val_loss.item()
                 eval_scaled_loss += scaled_val_loss.item()
-                batch_loss_sum += val_loss.item()
-                batch_scaled_loss_sum += scaled_val_loss.item()
 
                 # Store first batch for visualization
                 if j == 0:
@@ -211,9 +205,9 @@ def launch():
     parser.add_argument('--run_name', type=str, default="ViT_max_pressure_home")
     parser.add_argument('--patience', type=int, default=10)
     parser.add_argument('--epochs', type=int, default=10)
-    parser.add_argument('--batch_size', type=int, default=48)
-    parser.add_argument('--patch_size', type=int, default=3)
-    parser.add_argument('--hidden_dim', type=int, default=512)
+    parser.add_argument('--batch_size', type=int, default=8)
+    parser.add_argument('--patch_size', type=int, default=1)
+    parser.add_argument('--hidden_dim', type=int, default=256)
     parser.add_argument('--num_layers', type=int, default=4)
     parser.add_argument('--seq_len', type=int, default=302)
     parser.add_argument('--dataset_path', type=str, default="/home/reid/projects/blast_waves/hdf5_dataset_ultra_low_res_1_simulation_per_file")
