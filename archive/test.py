@@ -1,8 +1,8 @@
 import torch
 import matplotlib.pyplot as plt
 import matplotlib.patches as patches
-from blastformer_transformer import BlastFormer, PatchEmbed
-from hdf5_dataset import BlastDataset
+from archive.blastformer_transformer import BlastFormer, PatchEmbed
+from archive.hdf5_dataset import BlastDataset
 from torch.utils.data import DataLoader
 from utils import custom_collate, unpatchify_batch, plot_reconstruction_all
 import numpy as np

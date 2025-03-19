@@ -13,8 +13,8 @@ import wandb
 import math
 import matplotlib.pyplot as plt
 from utils import *
-from hdf5_dataset import *
-from blastformer_transformer import *
+from hdf5_dataset_new import *
+from archive.blastformer_transformer_max_pressure import *
 
 logging.basicConfig(format="%(asctime)s - %(levelname)s: %(message)s", level=logging.INFO, datefmt="%I:%M:%S")
 
@@ -40,7 +40,7 @@ def train(args):
     output_dim = 99
     input_dim = (99**2)//(patch_size**2)
 
-    model = BlastFormer2Channel(input_dim, hidden_dim, num_layers, output_dim, patch_size).to(device)
+    model = BlastFormer(input_dim, hidden_dim, num_layers, output_dim, patch_size).to(device)
 
     optimizer = optim.AdamW(model.parameters(), lr=args.lr)
     scheduler = CosineAnnealingLR(optimizer, T_max=args.epochs, eta_min=0)
@@ -50,7 +50,7 @@ def train(args):
     logger = SummaryWriter(os.path.join("runs", args.run_name))
 
     # Wandb setup
-    wandb.init(project='blastformer', name=args.run_name, config=args)
+    wandb.init(project='ViT_max_pressure', name=args.run_name, config=args)
     config = wandb.config
     config.epochs = args.epochs
     config.batch_size = args.batch_size
@@ -67,26 +67,29 @@ def train(args):
         logging.info(f"Starting epoch {epoch}:")
         pbar = tqdm(training_dataloader)
         epoch_train_loss = 0
+        num_predicted = 0
 
         for i, batch in enumerate(pbar):
             # Move inputs and targets to device
-            current_pressure = batch["source_pressure_with_time"].to(device) # shape: (batch_size, 99,99)
-            next_pressures = batch["target_pressure_with_time"].to(device)
-            charge_data = batch["source_charge_data"].to(device) # shape: (batch_size, time, 7)
-            wall_locations = batch["source_wall_locations"].to(device)
-            current_time = batch["source_time"].to(device)
-            next_time = batch["target_time"].to(device)
+            charge_center = batch["charge_center"].to(device)
+            charge_mass = batch["charge_mass"].to(device)
+            wall_1 = batch["wall_1"].to(device)
+            wall_2 = batch["wall_2"].to(device)
+            wall_3 = batch["wall_3"].to(device)
+            times = batch["times"].to(device)
+            pressures = batch["pressures"].to(device) # shape: (batch_size, 99,99)
+            max_pressure = batch["max_pressure"].to(device)
 
-            outputs = model(current_pressure, charge_data, wall_locations, current_time)
-            predicted_pressure = outputs
-            loss = l1(predicted_pressure, next_pressures)
-            scaled_loss = scaledlp_loss(predicted_pressure, next_pressures, p=2, reduction="mean")
+            initial_pressure = pressures[:, 1, :, :]
+            charge_data = torch.cat([charge_center, charge_mass.unsqueeze(1)], dim=1)
+            wall_locations = torch.cat([wall_1, wall_2, wall_3], dim=1)
+            predicted_pressure = model(initial_pressure.unsqueeze(1), charge_data, wall_locations)
+            loss = l1(predicted_pressure.squeeze(1), max_pressure)
+            scaled_loss = scaledlp_loss(predicted_pressure.squeeze(1), max_pressure, p=2, reduction="mean")
 
-            
+
             optimizer.zero_grad()
             loss.backward()
-            # clip gradients
-            torch.nn.utils.clip_grad_norm_(model.parameters(), 1.0)
             optimizer.step()
 
             epoch_train_loss += loss.item()
@@ -101,44 +104,67 @@ def train(args):
             })
             logger.add_scalar(f"loss: {epoch}", loss.item(), global_step=epoch * l + i)
             logger.add_scalar("learning_rate", current_lr, global_step=epoch * l + i)
+            
 
         epoch_train_loss /= len(training_dataloader)
         training_loss.append(epoch_train_loss)
-        scheduler.step(epoch_train_loss)
+        scheduler.step()
 
         # Validation
         model.eval()
         eval_model_loss = 0
-        # store the first batch for visualization
+        eval_scaled_loss = 0
+        num_predicted_val = 0
+
+        # Store the first batch for visualization
         vis_inputs, vis_targets, vis_predictions = None, None, None
+
         with torch.no_grad():
             for j, val_batch in enumerate(validation_dataloader):
-                val_current_pressure = val_batch["source_pressure_with_time"].to(device)
-                val_next_pressures = val_batch["target_pressure_with_time"].to(device)
-                val_charge_data = val_batch["source_charge_data"].to(device)
-                val_wall_locations = val_batch["source_wall_locations"].to(device)
-                val_current_time = val_batch["source_time"].to(device)
+                val_charge_center = val_batch["charge_center"].to(device)
+                val_charge_mass = val_batch["charge_mass"].to(device)
+                val_wall_1 = val_batch["wall_1"].to(device)
+                val_wall_2 = val_batch["wall_2"].to(device)
+                val_wall_3 = val_batch["wall_3"].to(device)
+                val_times = val_batch["times"].to(device)
+                val_pressures = val_batch["pressures"].to(device)  # shape: (batch_size, 99, 99)
+                val_max_pressure = val_batch["max_pressure"].to(device)
 
-                val_outputs = model(val_current_pressure, val_charge_data, val_wall_locations, val_current_time)
-                val_predicted_pressure = val_outputs
-                val_loss = l1(val_predicted_pressure, val_next_pressures)
+                val_initial_pressure = val_pressures[:, 1, :, :]
+                val_charge_data = torch.cat([val_charge_center, val_charge_mass.unsqueeze(1)], dim=1)
+                val_wall_locations = torch.cat([val_wall_1, val_wall_2, val_wall_3], dim=1)
+                val_predicted_pressure = model(val_initial_pressure.unsqueeze(1), val_charge_data, val_wall_locations)
+                val_loss = l1(val_predicted_pressure.squeeze(1), val_max_pressure)
+                scaled_val_loss = scaledlp_loss(val_predicted_pressure.squeeze(1), val_max_pressure, p=2, reduction="mean")
+
                 eval_model_loss += val_loss.item()
+                eval_scaled_loss += scaled_val_loss.item()
 
+                # Store first batch for visualization
                 if j == 0:
-                    vis_inputs = val_current_pressure
-                    vis_targets = val_next_pressures
-                    vis_predictions = val_predicted_pressure
+                    vis_inputs = val_initial_pressure[0, :, :]
+                    vis_targets = val_max_pressure[0, :, :]
+                    vis_predictions = val_predicted_pressure.squeeze(1)[0, :, :]
+                    print(f"Visualizing first batch of validation predictions.")
+                    print(f"Inputs shape: {vis_inputs.shape}, Targets shape: {vis_targets.shape}, Predictions shape: {vis_predictions.shape}")
 
-            epoch_val_loss = eval_model_loss / len(validation_dataloader)
-            validation_loss.append(epoch_val_loss)
-            wandb.log({
-                "Validation Loss": epoch_val_loss,
-                "Epoch": epoch
-            })
-            logger.add_scalar("validation_loss", epoch_val_loss, global_step=epoch)
-            logging.info(f"Epoch {epoch} - Training Loss: {epoch_train_loss}, Validation Loss: {epoch_val_loss}")
 
-        # visualize validation predictions
+
+        epoch_val_loss = eval_model_loss / len(validation_dataloader)
+        epoch_val_scaled_loss = eval_scaled_loss / len(validation_dataloader)
+        validation_loss.append(epoch_val_loss)
+
+        wandb.log({
+            "Validation Loss": epoch_val_loss,
+            "Validation Scaled Loss": epoch_val_scaled_loss,
+            "Epoch": epoch
+        })
+        logger.add_scalar("validation_loss", epoch_val_loss, global_step=epoch)
+        logger.add_scalar("validation_scaled_loss", epoch_val_scaled_loss, global_step=epoch)
+
+        logging.info(f"Epoch {epoch} - Training Loss: {epoch_train_loss}, Validation Loss: {epoch_val_loss}, Validation Scaled Loss: {epoch_val_scaled_loss}")
+
+        # Visualize validation predictions
         if vis_inputs is not None:
             visualize_results(vis_inputs, vis_targets, vis_predictions, args.run_name, epoch)
 
@@ -152,12 +178,11 @@ def train(args):
 
         if epochs_no_improve >= patience:
             logging.info(f"Early stopping after {epoch} epochs.")
-            break
+            return
 
         current_lr = optimizer.param_groups[0]['lr']
         logger.add_scalar("learning_rate", current_lr, global_step=epoch)
         logging.info(f"Epoch {epoch} completed. Learning rate: {current_lr}, epochs no improvement: {epochs_no_improve}, best loss: {best_loss}")
-
 
     # Save the loss curves (training and validation)
     plt.figure()
@@ -177,17 +202,17 @@ def train(args):
 def launch():
     import argparse
     parser = argparse.ArgumentParser()
-    parser.add_argument('--run_name', type=str, default="lucid_blastformer2Channel_lab-256_hidden_dim")
+    parser.add_argument('--run_name', type=str, default="ViT_max_pressure_home")
     parser.add_argument('--patience', type=int, default=10)
     parser.add_argument('--epochs', type=int, default=10)
-    parser.add_argument('--batch_size', type=int, default=48)
-    parser.add_argument('--patch_size', type=int, default=3)
-    parser.add_argument('--hidden_dim', type=int, default=512)
+    parser.add_argument('--batch_size', type=int, default=8)
+    parser.add_argument('--patch_size', type=int, default=1)
+    parser.add_argument('--hidden_dim', type=int, default=256)
     parser.add_argument('--num_layers', type=int, default=4)
     parser.add_argument('--seq_len', type=int, default=302)
-    parser.add_argument('--dataset_path', type=str, default="/home/reid/projects/blast_waves/hdf5_dataset")
+    parser.add_argument('--dataset_path', type=str, default="/home/reid/projects/blast_waves/hdf5_dataset_ultra_low_res_1_simulation_per_file")
     parser.add_argument('--device', type=str, default="cuda")
-    parser.add_argument('--lr', type=float, default=1e-5)
+    parser.add_argument('--lr', type=float, default=1e-4)
     args = parser.parse_args()
     train(args)
 

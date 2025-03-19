@@ -9,7 +9,7 @@ from tqdm import tqdm
 import wandb
 
 # Import the UNetAutoencoder model
-from Unet import UNetAutoencoder
+from archive.Unet import UNetAutoencoder
 
 class TrainUNetAutoencoder:
     def __init__(self, config):

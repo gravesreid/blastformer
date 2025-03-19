@@ -1,8 +1,8 @@
 import torch
 import torch.optim as optim
 import torch.nn as nn
-from blastformer_transformer import BlastFormer
-from hdf5_dataset import *
+from archive.blastformer_transformer import BlastFormer
+from archive.hdf5_dataset import *
 import matplotlib.pyplot as plt
 from torch.optim.lr_scheduler import CosineAnnealingLR
 from tqdm import tqdm

@@ -3,7 +3,7 @@ from torch import utils
 from archive.dataset import BlastDataset
 from utils import custom_collate, unpatchify_batch, plot_reconstruction_all
 from archive.blastformer_lightning import LightningBlastFormer
-from blastformer_transformer import BlastFormer
+from archive.blastformer_transformer import BlastFormer
 
 test_dir = "/home/reid/projects/blast_waves/dataset_parallel_processed_large/test"
 

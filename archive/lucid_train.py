@@ -14,7 +14,7 @@ import math
 import matplotlib.pyplot as plt
 from utils import *
 from hdf5_dataset_new import *
-from blastformer_transformer import *
+from archive.blastformer_transformer import *
 
 logging.basicConfig(format="%(asctime)s - %(levelname)s: %(message)s", level=logging.INFO, datefmt="%I:%M:%S")
 
