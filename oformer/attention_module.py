@@ -5,6 +5,7 @@ import numpy as np
 from einops import rearrange, repeat, reduce
 from einops.layers.torch import Rearrange
 from torch.nn.init import xavier_uniform_, constant_, xavier_normal_, orthogonal_
+# from torch_cluster import fps
 # helpers
 
 
@@ -309,24 +310,27 @@ class LinearAttention(nn.Module):
         for param in self.to_qkv.parameters():
             if param.ndim > 1:
                 for h in range(self.heads):
-                    if self.attn_type == 'fourier':
-                        # for v
-                        init_fn(param[(self.heads * 2 + h) * self.dim_head:(self.heads * 2 + h + 1) * self.dim_head, :],
-                                gain=self.init_gain)
-                        param.data[(self.heads * 2 + h) * self.dim_head:(self.heads * 2 + h + 1) * self.dim_head,
-                        :] += self.diagonal_weight * \
-                              torch.diag(torch.ones(
-                                  param.size(-1),
-                                  dtype=torch.float32))
-                    else: # for galerkin
-                        # for q
-                        init_fn(param[h * self.dim_head:(h + 1) * self.dim_head, :], gain=self.init_gain)
-                        #
-                        param.data[h * self.dim_head:(h + 1) * self.dim_head, :] += self.diagonal_weight * \
-                                                                                    torch.diag(torch.ones(
-                                                                                        param.size(-1),
-                                                                                        dtype=torch.float32))
+                    # for q
+                    init_fn(param[h * self.dim_head:(h + 1) * self.dim_head, :], gain=self.init_gain)
 
+                    param.data[h * self.dim_head:(h + 1) * self.dim_head, :] += self.diagonal_weight * \
+                                                                                torch.diag(torch.ones(
+                                                                                    param.size(-1),
+                                                                                    dtype=torch.float32))
+
+                    # for k
+                    init_fn(param[2 * h * self.dim_head:(2 * h + 1) * self.dim_head, :], gain=self.init_gain)
+                    param.data[2 * h * self.dim_head:(2 * h + 1) * self.dim_head, :] += self.diagonal_weight * \
+                                                                                        torch.diag(torch.ones(
+                                                                                            param.size(-1),
+                                                                                            dtype=torch.float32))
+
+                    # for v
+                    init_fn(param[3 * h * self.dim_head:(3 * h + 1) * self.dim_head, :], gain=self.init_gain)
+                    param.data[3 * h * self.dim_head:(3 * h + 1) * self.dim_head, :] += self.diagonal_weight * \
+                                                                                        torch.diag(torch.ones(
+                                                                                            param.size(-1),
+                                                                                            dtype=torch.float32))
 
     def norm_wrt_domain(self, x, norm_fn):
         b = x.shape[0]
@@ -530,11 +534,10 @@ class CrossLinearAttention(nn.Module):
                                                                               param.size(-1), dtype=torch.float32))
 
                     # for v
-                    init_fn(param[(self.heads + h) * self.dim_head:(self.heads + h + 1) * self.dim_head, :], gain=self.init_gain)
-                    param.data[(self.heads + h) * self.dim_head:(self.heads + h + 1) * self.dim_head, :] += self.diagonal_weight * \
+                    init_fn(param[2 * h * self.dim_head:(2*h+1) * self.dim_head, :], gain=self.init_gain)
+                    param.data[2 * h * self.dim_head:(2*h+1) * self.dim_head, :] += self.diagonal_weight * \
                                                                            torch.diag(torch.ones(
                                                                                param.size(-1), dtype=torch.float32))
-                                                                               
         for param in self.to_q.parameters():
             if param.ndim > 1:
                 for h in range(self.heads):
@@ -696,6 +699,89 @@ def knn(x1, x2, k):
     return idx
 
 
+class AttentivePooling(nn.Module):
+    """Use standard scaled-dot product (or say, fourier type attention)"""
+    def __init__(self,
+                 dim,
+                 heads,
+                 dim_head,
+                 pooling_ratio=8,   # 8 -> 1
+                 dropout=0.):
+        super().__init__()
+        self.layers = nn.ModuleList([])
+        self.pooling_ratio = pooling_ratio
+
+        inner_dim = dim_head * heads
+        project_out = not (heads == 1 and dim_head == dim)
+
+        self.heads = heads
+        self.scale = dim_head ** -0.5
+
+        self.attend = nn.Softmax(dim=-1)
+        self.to_qkv = nn.Linear(dim+2, inner_dim * 3, bias=False)
+
+        self.to_out = nn.Sequential(
+            nn.Linear(inner_dim, dim),
+            nn.Dropout(dropout)
+        ) if project_out else nn.Identity()
+
+        self.emb_module = RotaryEmbedding(dim_head // 2, scale=32)
+
+    def forward(self, x, pos_embedding):
+        # x in [b, t, n, c]
+        # pos_embedding in [b, n, 2], it's just coordinates of each point
+        b, t, n, c = x.shape
+        batch_idx = torch.arange(b, device=pos_embedding.device).view(-1, 1)
+        batch_idx = rearrange(repeat(batch_idx, 'b () -> b n', n=n), 'b n -> (b n)')  # [b*n, ]
+        pos_embedding = rearrange(pos_embedding, 'b n c -> (b n) c')    # flatten
+
+        pivot_idx = fps(pos_embedding, batch_idx, ratio=1/self.pooling_ratio)   # [b*n*1/self.pooling_ratio, ]
+        pivot_pos = rearrange(pos_embedding[pivot_idx], '(b n) c -> b n c', b=b)
+
+        pos_embedding = rearrange(pos_embedding, '(b n) c -> b n c', b=b)
+        nbr_idx = knn(pivot_pos, pos_embedding, k=self.pooling_ratio + 1) # [b, s, k]
+
+        # duplicate indexes in the time dimension
+
+        pos_embedding = repeat(pos_embedding, 'b n c -> (b t) n c', t=t)
+        nbr_idx = repeat(nbr_idx, 'b n k -> (b t) n k', t=t)
+        idx_base = torch.arange(0, b*t, device=x.device).view(-1, 1, 1) * n
+
+        nbr_idx = nbr_idx + idx_base
+
+        x = rearrange(x, 'b t n c -> (b t n) c')[nbr_idx.view(-1), :]  # [b*t*n*k, c]
+        x = rearrange(x, '(bt n k) c -> bt n k c',
+                      bt=b*t, n=int(n/self.pooling_ratio), k=self.pooling_ratio + 1)
+
+        grouped_pos = rearrange(pos_embedding, 'bt n c -> (bt n) c')[nbr_idx.view(-1), :]  # [b*t*n*k, 3]
+        grouped_pos = rearrange(grouped_pos, '(bt n k) c -> bt n k c',
+                                bt=b*t, n=int(n/self.pooling_ratio), k=self.pooling_ratio + 1)
+        grouped_pos = grouped_pos - repeat(
+            rearrange(pivot_pos, 'b n c -> b n 1 c'), 'b n () c -> (b t) n k c', t=t, k=self.pooling_ratio + 1
+        )
+        x = rearrange(x, 'bt n k c -> (bt n) k c')          # [btn, k, c]
+        grouped_pos = rearrange(grouped_pos, 'bt n k c -> (bt n) k c')      # [btn, k, 2]
+        x = torch.cat((x, grouped_pos), dim=-1)
+
+        freqs_x = self.emb_module.forward(grouped_pos[..., 0], x.device)
+        freqs_y = self.emb_module.forward(grouped_pos[..., 1], x.device)
+
+        # attention part
+        qkv = self.to_qkv(x).chunk(3, dim=-1)
+        q, k, v = map(lambda t: rearrange(t, 'btn k (h d) -> btn h k d', h=self.heads), qkv)
+        q = apply_2d_rotary_pos_emb(q, freqs_x, freqs_y)
+        k = apply_2d_rotary_pos_emb(k, freqs_x, freqs_y)
+        dots = torch.matmul(q, k.transpose(-1, -2)) * self.scale
+        attn = self.attend(dots)  # similarity score
+
+        out = torch.matmul(attn, v)
+        out = rearrange(out, 'btn h k d -> btn k (h d)')
+        out = self.to_out(out)  # btn, k, d
+        out = out.mean(dim=1)   # btn, d
+        return rearrange(out, '(b t n) c -> b t n c', b=b, t=t),\
+               pivot_pos  # [b, s, 2]
+
+
 class ProjDotProduct(nn.Module):
     """
     Dot product that emulates the Branch and Trunk in DeepONet,
@@ -756,4 +842,6 @@ class ProjDotProduct(nn.Module):
         out = torch.einsum('bi,ni->bn', k, q)
 
         return self.to_out(out)
+
+
 

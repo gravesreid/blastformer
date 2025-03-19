@@ -59,8 +59,7 @@ class TransformerCatNoCls(nn.Module):
                                                    relative_emb_dim=relative_emb_dim,
                                                    min_freq=min_freq,
                                                    init_method=attention_init,
-                                                   init_gain=init_gain,
-                                                   use_ln=False,
+                                                   init_gain=init_gain
                                                    )
                 else:
                     attn_module = LinearAttention(dim, attn_type,
@@ -204,6 +203,141 @@ class TransformerWithPad(nn.Module):
                 x = ffn(x) + x
         return x
 
+
+class SimpleAttentionEncoder(nn.Module):
+    def __init__(self,
+                 input_channels,           # how many channels
+                 seq_len,                  # this should be the input sequence length
+                 in_emb_dim,               # embedding dim of token                 (how about 512)
+                 out_seq_emb_dim,          # embedding dim of encoded sequence      (how about 256)
+                 depth,                    # depth of transformer / how many layers of attention    (4)
+                 n_patch=16,
+                 out_grid=64,
+                 emb_dropout=0.1,           # dropout of embedding
+                 attention_init='xavier',
+                 ):
+        super().__init__()
+        self.n_patch = n_patch
+        self.out_grid = out_grid
+
+        t = seq_len
+        self.dropout = nn.Dropout(emb_dropout)
+
+        self.to_embedding = nn.Sequential(
+            nn.Linear(input_channels, in_emb_dim, bias=False),
+            nn.GELU(),
+            nn.Linear(in_emb_dim, in_emb_dim, bias=False),
+            nn.GELU(),
+            nn.Linear(in_emb_dim, in_emb_dim, bias=False),
+        )
+
+        self.temp_embedding = nn.Parameter(
+            torch.cat((torch.tensor([-1.]), torch.linspace(0, 1, t)), dim=0).view(1, t+1, 1), requires_grad=False)   # [b, t, 1]
+        self.cls_token = nn.Parameter(torch.randn(1, 1, in_emb_dim), requires_grad=True)
+        self.cls_emb = nn.Parameter(torch.randn(1, 1, 2), requires_grad=True)
+        self.gamma = nn.Parameter(torch.tensor([0.1]), requires_grad=True)
+
+        self.st_transformer = STTransformerCat(in_emb_dim, 1, 4, 64, in_emb_dim, 'galerkin', attention_init=attention_init)
+
+        self.s_transformer = TransformerCat(in_emb_dim*2, depth-1, 4, 64, in_emb_dim*2, 'galerkin', attention_init=attention_init)
+
+        self.to_cls = nn.Sequential(
+            nn.LayerNorm(2*in_emb_dim),
+            nn.Linear(2*in_emb_dim, out_seq_emb_dim, bias=True)
+            )
+
+        self.shrink_temporal = nn.Sequential(
+            Rearrange('b n t c -> b n (t c)'),
+            nn.Linear(t*in_emb_dim, 2*in_emb_dim, bias=False),
+        )
+        self.expand_feat = nn.Linear(in_emb_dim, 2*in_emb_dim)
+
+        self.project_to_latent = nn.Sequential(
+            nn.Linear(2*in_emb_dim, out_seq_emb_dim, bias=False))
+
+    def forward(self,
+                x,  # [b, c, t, n]
+                input_pos,  # [b, n, 2]
+                ):
+        x = rearrange(x, 'b c t n-> b t n c')
+        x = self.to_embedding(x)
+        x = self.dropout(x)
+
+        x, x_cls = self.st_transformer.forward(x,
+                                             self.cls_token,
+                                             self.temp_embedding,
+                                             input_pos)
+        x = self.shrink_temporal(x)
+        x_cls = self.expand_feat(x_cls)
+        x, x_cls = self.s_transformer.forward(x, x_cls, input_pos, self.cls_emb)
+        x, x_cls = self.project_to_latent(x), self.to_cls(x_cls) * self.gamma
+
+        return x, x_cls
+
+
+class NoSTAttentionEncoder(nn.Module):
+    def __init__(self,
+                 input_channels,           # how many channels
+                 seq_len,                  # this should be the input sequence length
+                 in_emb_dim,               # embedding dim of token                 (how about 512)
+                 out_seq_emb_dim,          # embedding dim of encoded sequence      (how about 256)
+                 depth,                    # depth of transformer / how many layers of attention    (4)
+                 emb_dropout=0.1,           # dropout of embedding
+                 ):
+        super().__init__()
+
+        t = seq_len
+        self.dropout = nn.Dropout(emb_dropout)
+
+        self.to_embedding = nn.Sequential(
+            nn.Linear(input_channels, in_emb_dim, bias=False),
+            nn.GELU(),
+            nn.Linear(in_emb_dim, in_emb_dim, bias=False),
+            nn.GELU(),
+            nn.Linear(in_emb_dim, in_emb_dim, bias=False),
+        )
+
+        self.cls_token = nn.Parameter(torch.randn(1, 2*in_emb_dim), requires_grad=True)
+        self.cls_emb = nn.Parameter(torch.randn(1, 1, 2), requires_grad=True)
+        self.gamma = nn.Parameter(torch.tensor([0.1]), requires_grad=True)
+
+        self.shrink_temporal = nn.Sequential(
+            Rearrange('b t n c -> b n (t c)'),
+            nn.Linear(t * in_emb_dim, 2 * in_emb_dim, bias=False),
+        )
+        self.s_transformer = TransformerCat(in_emb_dim*2, depth, 4, 64, in_emb_dim*2, 'galerkin', init_scale=32)
+
+        self.to_cls = nn.Sequential(
+            nn.Linear(2*in_emb_dim, out_seq_emb_dim, bias=False),
+            nn.GELU(),
+            nn.Linear(out_seq_emb_dim, out_seq_emb_dim, bias=False),
+            nn.GELU(),
+            nn.Linear(out_seq_emb_dim, out_seq_emb_dim, bias=False),
+            nn.LayerNorm(out_seq_emb_dim))
+
+        self.project_to_latent = nn.Sequential(
+            nn.Linear(2*in_emb_dim, out_seq_emb_dim, bias=False),
+            nn.GELU(),
+            nn.Linear(out_seq_emb_dim, out_seq_emb_dim, bias=False),
+            nn.GELU(),
+            nn.Linear(out_seq_emb_dim, out_seq_emb_dim, bias=False),
+            nn.InstanceNorm1d(in_emb_dim))
+
+    def forward(self,
+                x,  # [b, c, t, n]
+                input_pos,  # [b, n, 2]
+                ):
+        x = rearrange(x, 'b c t n-> b t n c')
+        x = self.to_embedding(x)
+        x = self.dropout(x)
+        x = self.shrink_temporal(x)
+
+        x, x_cls = self.s_transformer.forward(x, self.cls_token, input_pos, self.cls_emb)
+        x, x_cls = self.project_to_latent(x), self.to_cls(x_cls) * self.gamma
+
+        return x, x_cls
+
+
 class SpatialTemporalEncoder2D(nn.Module):
     def __init__(self,
                  input_channels,           # how many channels
@@ -280,7 +414,7 @@ class SpatialEncoder2D(nn.Module):
                 x,  # [b, n, c]
                 input_pos,  # [b, n, 2]
                 ):
-        print(f'x shape: {x.shape}')
+
         x = self.to_embedding(x)
         x = self.dropout(x)
 
@@ -577,6 +711,76 @@ class SpatialTemporalOperator2D(nn.Module):
         return x
 
 
+# ============================
+# for neurips rebuttal
+# ============================
+
+
+class IrregSpatialEncoder2D(torch.nn.Module):
+    # for steady state irregular geometries
+    def __init__(self,
+                 input_channels,  # how many channels
+                 in_emb_dim,  # embedding dim of token                 (how about 512)
+                 out_chanels,
+                 heads,
+                 depth,  # depth of transformer / how many layers of attention    (4)
+                 res,
+                 use_ln=True,
+                 emb_dropout=0.05,  # dropout of embedding
+                 ):
+        super().__init__()
+
+        self.to_embedding = nn.Sequential(
+            nn.Linear(input_channels, in_emb_dim, bias=False),
+            nn.ReLU(),
+            nn.Linear(in_emb_dim, in_emb_dim, bias=False),
+        )
+
+        self.dropout = nn.Dropout(emb_dropout)
+
+        self.s_transformer = TransformerWithPad(in_emb_dim, depth, heads, in_emb_dim, in_emb_dim,
+                                                'galerkin',
+                                                use_relu=True,
+                                                use_ln=use_ln,
+                                                scale=[res, res // 4] + [1] * (depth - 2),
+                                                relative_emb_dim=2,
+                                                min_freq=1 / res,
+                                                dropout=0.,
+                                                attention_init='orthogonal')
+
+        # self.ln = nn.LayerNorm(in_emb_dim)
+
+        self.to_out = nn.Sequential(
+            nn.Linear(in_emb_dim, in_emb_dim, bias=False),
+            nn.ReLU(),
+            nn.Linear(in_emb_dim, out_chanels, bias=False)
+        )
+
+    def forward(self,
+                x,  # [b, n, c]
+                input_pos,  # [b, n, 2]
+                pad_mask,  # [b, n, 1]
+                ):
+        # randomly drop some node
+
+        x = self.to_embedding(x)
+        x = x.masked_fill(~pad_mask, 0.)
+
+        # x_skip = x
+        x = self.dropout(x)
+
+        x = self.s_transformer.forward(x, input_pos, pad_mask)
+
+        x = x.masked_fill(~pad_mask, 0.)
+
+        # x = self.ln(x + x_skip)
+
+        x = self.to_out(x)
+        x = x.masked_fill(~pad_mask, 0.)
+
+        return x
+
+
 class IrregSTEncoder2D(torch.nn.Module):
     # for time dependent airfoil
     def __init__(self,
@@ -584,9 +788,10 @@ class IrregSTEncoder2D(torch.nn.Module):
                  time_window,
                  in_emb_dim,  # embedding dim of token                 (how about 512)
                  out_chanels,
+                 max_node_type,
                  heads,
                  depth,  # depth of transformer / how many layers of attention    (4)
-                 res=2000,
+                 res,
                  use_ln=True,
                  emb_dropout=0.05,  # dropout of embedding
                  ):
@@ -595,11 +800,17 @@ class IrregSTEncoder2D(torch.nn.Module):
         # here, assume the input is in the shape [b, t, n, c]
         self.to_embedding = nn.Sequential(
             Rearrange('b t n c -> b c t n'),
-            nn.Conv2d(input_channels, in_emb_dim, kernel_size=(self.tw, 1), stride=(self.tw, 1), padding=(0, 0), bias=False),
+            nn.Conv2d(input_channels, in_emb_dim, kernel_size=(3, 1), stride=(2, 1), padding=(1, 0), bias=False),
+            nn.GELU(),
+            nn.Conv2d(in_emb_dim, in_emb_dim, kernel_size=(self.tw//2, 1), stride=(self.tw//2, 1), padding=(0, 0), bias=False),
             nn.GELU(),
             nn.Conv2d(in_emb_dim, in_emb_dim, kernel_size=(1, 1), stride=(1, 1), padding=(0, 0), bias=False),
             Rearrange('b c 1 n -> b n c'),
         )
+
+        self.node_embedding = nn.Embedding(max_node_type, in_emb_dim)
+
+        self.combine_embedding = nn.Linear(in_emb_dim, in_emb_dim, bias=False)
 
         self.dropout = nn.Dropout(emb_dropout)
 
@@ -619,16 +830,17 @@ class IrregSTEncoder2D(torch.nn.Module):
         self.ln = nn.LayerNorm(in_emb_dim)
 
         self.to_out = nn.Sequential(
-            nn.Linear(in_emb_dim, in_emb_dim, bias=False),
-            nn.ReLU(),
             nn.Linear(in_emb_dim, out_chanels, bias=False),
         )
 
     def forward(self,
                 x,  # [b, t, n, c]
+                node_type,  # [b, n, 1]
                 input_pos,  # [b, n, 2]
                 ):
         x = self.to_embedding(x)
+        x_node = self.node_embedding(node_type)
+        x = self.combine_embedding(x + x_node)
         x_skip = x
 
         x = self.dropout(x)
@@ -640,6 +852,8 @@ class IrregSTEncoder2D(torch.nn.Module):
         x = self.to_out(x)
 
         return x
+
+
 
 
 

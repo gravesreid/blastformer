@@ -120,6 +120,26 @@ class AttentionPropagator1D(nn.Module):
             x = ffn(x) + x
         return x
 
+
+class FourierPropagator(nn.Module):
+    def __init__(self,
+                 dim,
+                 depth,
+                 mode):
+        super().__init__()
+        self.layers = nn.ModuleList([])
+        self.latent_channels = dim
+
+        for d in range(depth):
+            self.layers.append(nn.Sequential(FourierConv2d(self.latent_channels, self.latent_channels,
+                                                           mode, mode), nn.GELU()))
+
+    def forward(self, z):
+        for layer, f_conv in enumerate(self.layers):
+            z = f_conv(z) + z
+        return z
+
+
 class MLPPropagator(nn.Module):
     def __init__(self,
                  dim,
@@ -244,12 +264,12 @@ class CrossFormer(nn.Module):
                                                        heads=heads, dim_head=dim_head, dropout=dropout,
                                                        relative_emb=relative_emb,
                                                        scale=scale,
+
                                                        relative_emb_dim=relative_emb_dim,
                                                        min_freq=min_freq,
                                                        init_method='orthogonal',
                                                        cat_pos=cat_pos,
                                                        pos_dim=relative_emb_dim,
-                                                       use_ln=False
                                                   )
         self.use_ln = use_ln
         self.residual = residual
@@ -1256,36 +1276,154 @@ class SpatialDecoder2D(nn.Module):
         return z  # [b, n, c]
 
 
+# =============================================================================
+# for neurips rebuttal
+# =============================================================================
+
+class IrregSpatialDecoder2D(nn.Module):
+    # for steady state irregular geometry
+    def __init__(self,
+                 latent_channels,  # 256??
+                 out_channels,  # 1 or 2?
+                 res=10,
+                 dropout=0.1,
+                 scale=0.5,
+                 **kwargs,
+                 ):
+        super().__init__()
+        self.layers = nn.ModuleList([])
+        self.out_channels = out_channels
+        self.latent_channels = latent_channels
+
+        self.coordinate_projection = nn.Sequential(
+            # GaussianFourierFeatureTransform(3, self.latent_channels, scale=scale),
+            nn.Linear(3, self.latent_channels, bias=False),
+            nn.GELU(),
+            nn.Linear(self.latent_channels, self.latent_channels, bias=False),
+            nn.GELU(),
+            nn.Linear(self.latent_channels, self.latent_channels, bias=False),
+        )
+
+        self.dropout = nn.Dropout(dropout)
+
+        self.decoding_transformer = CrossFormerWithPad(self.latent_channels, 'galerkin', 4,
+                                                        self.latent_channels, self.latent_channels,
+                                                        use_ln=False,
+                                                        residual=True,
+                                                        relative_emb=True,
+                                                        scale=1,
+                                                        relative_emb_dim=2,
+                                                        min_freq=1 / res)
+
+        self.mix_layer = LinearAttention(self.latent_channels, 'galerkin',
+                                           heads=1, dim_head=self.latent_channels,
+                                           relative_emb=True, scale=4,
+                                           relative_emb_dim=2,
+                                           min_freq=1 / res,
+                                           use_ln=True,
+                                           )
+
+        # self.ln = nn.LayerNorm(self.latent_channels)
+
+        self.to_out = nn.Sequential(
+            nn.Linear(self.latent_channels + 1, self.latent_channels, bias=False),
+            nn.ReLU(),
+            nn.Linear(self.latent_channels, self.latent_channels, bias=False))
+
+        self.scalar_head = nn.Sequential(
+            nn.Linear(self.latent_channels, self.latent_channels, bias=False),
+            nn.ReLU(),
+            nn.Linear(self.latent_channels, 1, bias=True))
+
+        self.field_head = nn.Sequential(
+            nn.Linear(self.latent_channels, self.latent_channels, bias=False),
+            nn.ReLU(),
+            nn.Linear(self.latent_channels, 2, bias=True))
+
+        self.init_decoder_params()
+
+
+    def init_decoder_params(self):
+        for layers in self.to_out:
+                for param in layers.parameters():
+                    if param.ndim > 1:
+                        in_c = param.size(-2)
+                        xavier_uniform_(param, gain=1e-1)
+                        # param.data[:, :in_c] += 1 / in_c * torch.diag(torch.ones(in_c, dtype=torch.float32))
+
+    def forward(self,
+                z,  # [b, n c]
+                propagate_pos,  # [b, n, 2]
+                input_pos,      # [b, n, 2]
+                pad_mask,   # [b, n, 1]
+                bound_mask, # [b, n, 1]
+                ):
+        x = self.coordinate_projection.forward(torch.cat((propagate_pos, bound_mask.float()), dim=-1))
+        x = x.masked_fill(~pad_mask, 0.)
+        z = self.dropout(z)
+        z = self.decoding_transformer.forward(x, z, pad_mask, propagate_pos, input_pos.detach())
+        z = z.masked_fill(~pad_mask, 0.)
+
+        z = self.mix_layer.forward(z, propagate_pos, padding_mask=pad_mask) + z
+
+        # z = self.ln(z)
+        z = torch.cat((z, bound_mask.float()), dim=-1)
+        z = self.to_out(z)
+        z = z.masked_fill(~pad_mask, 0.)
+
+        scalar_pred = self.scalar_head(z)
+        field_pred = self.field_head(z)
+        z = torch.cat((scalar_pred, field_pred), dim=-1)
+        z = z.masked_fill(~pad_mask, 0.)
+
+        return z  # [b, n, c]
+
+    def impose_boundary(self,
+                    x,  # [b, n, c]
+                    train_set,
+                    bound_mask,  # [b, n, 1]  left right bottom top
+                    ):
+        # denormalize
+        # hard coded a scale factor for now
+        x = x * 0.1
+        # x[:, :, 0] = x[:, :, 0] * train_set.statistics['pot_std'] + train_set.statistics['pot_mean']
+        # x[:, :, 1:] = x[:, :, 1:] * train_set.statistics['field_std'] + train_set.statistics['field_mean']
+        # impose Dirichlet boundary condition
+
+        # potential
+        # x[:, :, 0:1] = x[:, :, 0:1].masked_fill(bound_mask, 0.)
+        return x
+
+
 class IrregSTDecoder2D(nn.Module):
     def __init__(self,
+                 max_node_type,
                  latent_channels,  # 256??
                  out_channels,  # 1 or 2?
                  res=200,
                  scale=8,
-                 dropout=0.1,
                  **kwargs,
                  ):
         super().__init__()
         self.out_channels = out_channels
         self.latent_channels = latent_channels
 
+        self.node_type_embedding = nn.Embedding(max_node_type, latent_channels)
+
         self.coordinate_projection = nn.Sequential(
             GaussianFourierFeatureTransform(2, self.latent_channels // 2, scale=scale),
-            nn.Linear(self.latent_channels, self.latent_channels, bias=False),
             nn.GELU(),
             nn.Linear(self.latent_channels, self.latent_channels, bias=False),
         )
 
-        self.combine_layer = nn.Linear(self.latent_channels*2, self.latent_channels, bias=False)
+        self.combine_layer = nn.Linear(self.latent_channels, self.latent_channels, bias=False)
 
-        self.input_dropout = nn.Dropout(dropout)
-
-        self.decoding_transformer = CrossFormer(self.latent_channels, 'galerkin', 16,
+        self.decoding_transformer = CrossFormer(self.latent_channels, 'galerkin', 4,
                                                 self.latent_channels, self.latent_channels,
                                                 relative_emb=True,
-                                                scale=32.,
+                                                scale=1.,
                                                 relative_emb_dim=2,
-                                                min_freq=1 / res)
+                                                min_freq=1 / 200)
 
         self.mix_layer = LinearAttention(self.latent_channels, 'galerkin',
                                          heads=1, dim_head=self.latent_channels,
@@ -1295,51 +1433,77 @@ class IrregSTDecoder2D(nn.Module):
                                          use_ln=False,
                                          )
 
-        self.expand_layer = nn.Linear(self.latent_channels, self.latent_channels*2, bias=False)
-
         self.propagator = nn.ModuleList([
             nn.ModuleList([nn.LayerNorm(self.latent_channels*2),
                            nn.Sequential(
-                               nn.Linear(self.latent_channels*2 + 2, self.latent_channels*2, bias=False),
+                               nn.Linear(self.latent_channels*3, self.latent_channels*2, bias=False),
                                nn.GELU(),
                                nn.Linear(self.latent_channels*2, self.latent_channels*2, bias=False),
                                nn.GELU(),
-                               nn.Linear(self.latent_channels*2, self.latent_channels*2, bias=False),
-                               nn.GELU(),
-                               nn.Linear(self.latent_channels * 2, self.latent_channels * 2, bias=False)
-                          )])
+                               nn.Linear(self.latent_channels*2, self.latent_channels*2, bias=False))])
         ])
 
-        self.out_norm = nn.LayerNorm(self.latent_channels*2)
         self.to_out = nn.Sequential(
+            nn.LayerNorm(self.latent_channels*2),
             nn.Linear(self.latent_channels*2, self.latent_channels*2, bias=False),
-            nn.ReLU(inplace=True),
+            nn.GELU(),
             nn.Linear(self.latent_channels*2, self.latent_channels, bias=False),
-            nn.ReLU(inplace=True),
+            nn.GELU(),
             nn.Linear(self.latent_channels, self.out_channels, bias=True))
 
-    def propagate(self, z, prop_pos):
+    def propagate(self, z, z_node):
         for layer in self.propagator:
             norm_fn, ffn = layer
-            z = ffn(torch.cat((norm_fn(z), prop_pos), dim=-1)) + z
+            z = ffn(torch.cat((norm_fn(z), z_node), dim=-1)) + z
         return z
 
     def decode(self, z):
-        z = self.out_norm(z)
         z = self.to_out(z)
         return z
 
     def forward(self,
                 z,  # [b, n c]
                 propagate_pos,  # [b, n, 2]
+                prop_node_type,  # [b, n, 1]
+                forward_steps,
                 input_pos):
+        history = []
+        x_node = self.node_type_embedding(prop_node_type)
         x = self.coordinate_projection.forward(propagate_pos)
-
-        z = self.input_dropout(z)
+        x = self.combine_layer(x+x_node)
         z = self.decoding_transformer.forward(x, z, propagate_pos, input_pos)
         z = self.mix_layer.forward(z, propagate_pos) + z
-        z = self.expand_layer(z)
-        z = self.propagate(z, propagate_pos)
-        u = self.decode(z)
 
-        return u 
+        # forward the dynamics in the latent space
+        for step in range(forward_steps):
+            z = self.propagate(z, x_node)
+            u = self.decode(z)
+
+            if self.out_channels == 1:
+                u = rearrange(u, 'b n t-> b t n')
+            else:
+                u = rearrange(u, 'b n (t c) -> b t n c', c=self.out_channels)
+
+            history.append(u)
+        history = torch.cat(history, dim=1)  # concatenate in temporal dimension
+        return history
+
+    def denormalize(self,
+                    x,  # [b, t, n, c]
+                    train_set,
+                    ):
+        # denormalize
+        # vel
+        x[:, :, :, 0] = x[:, :, :, 0] * train_set.statistics['vel_x_std'] + train_set.statistics['vel_x_mean']
+        x[:, :, :, 1] = x[:, :, :, 1] * train_set.statistics['vel_y_std'] + train_set.statistics['vel_y_mean']
+
+        # dns
+        x[:, :, :, 2] = x[:, :, :, 2] * train_set.statistics['dns_std'] + train_set.statistics['dns_mean']
+
+        # prs
+        x[:, :, :, 3] = x[:, :, :, 3] * train_set.statistics['prs_std'] + train_set.statistics['prs_mean']
+
+        return x
+
+
+
