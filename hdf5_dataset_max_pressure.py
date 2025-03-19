@@ -126,7 +126,7 @@ class BlastDataset(Dataset):
 
 
 def main():
-    dataset = BlastDataset("/home/reid/projects/blast_waves/hdf5_dataset_ultra_low_res_1_simulation_per_file", normalize=True)
+    dataset = BlastDataset("/home/reid/projects/blast_waves/hdf5_dataset_max_pressure", normalize=True)
     dataloader = DataLoader(
     dataset,
     batch_size=1,
@@ -135,52 +135,36 @@ def main():
     )
 
     num_processed = 0
-    pressures_list = []
     max_pressure_list = []
+    input_tensor_list = []
     for batch in dataloader:
         if num_processed > 1000:
             break
         print(f"Processing batch {num_processed}")
-        simulation_number = batch["simulation_number"]
-        charge_center = batch["charge_center"]
-        charge_mass = batch["charge_mass"]
-        wall_1 = batch["wall_1"]
-        wall_2 = batch["wall_2"]
-        wall_3 = batch["wall_3"]
-        times = batch["times"]
-        pressures = batch["pressures"]
-        print(f'pressures shape: {pressures.shape}')
         max_pressure = batch["max_pressure"]
+        input_tensor = batch["input_tensor"]
         max_pressure_list.append(max_pressure)
-        pressures_list.append(pressures)
-        number_of_timesteps = batch["number_of_timesteps"]
-        max_time = batch["max_time"]
+        input_tensor_list.append(input_tensor)
         num_processed += 1
 
 
-    fig, axes = plt.subplots(1, 1, figsize=(12, 4))
-    print(f'pressures_list length: {len(pressures_list)}')
-    plot_time = True
-    if plot_time:
-        for time_batch in pressures_list:
-                time_batch = time_batch.squeeze(0)  # Remove batch dim -> Shape [30, 99, 99]
-                for time_step in range(30):
-                    axes.clear()  # Clear previous image
-                    axes.imshow(time_batch[time_step], cmap="jet")
-                    axes.set_title(f"Timestep {time_step + 1}")
-                    plt.pause(0.1)  # Pause to animate
-                axes.clear()
-                axes.imshow(time_batch[0], cmap="jet")
-                axes.set_title(f"Timestep 1")
-                plt.pause(0.1)
-
-        plt.show()
+    fig, axes = plt.subplots(1, 5, figsize=(12, 4))
 
     print(f'max_pressure_list length: {len(max_pressure_list)}')
-    for max_pressure in max_pressure_list:
-        print(f"max_pressure: {max_pressure}")
-        axes.clear()
-        axes.imshow(max_pressure.squeeze(0), cmap="jet")
+    for i in range(len(max_pressure_list)):
+        plt.clf()  # Clear the current figure
+        max_pressure = max_pressure_list[i]
+        input_tensor = input_tensor_list[i]
+        axes[0].imshow(max_pressure.squeeze(0), cmap="jet")
+        axes[0].set_title("Max Pressure")
+        axes[1].imshow(input_tensor.squeeze(0)[:,:,0], cmap="jet")
+        axes[1].set_title("obstacle 1 signed distance")
+        axes[2].imshow(input_tensor.squeeze(0)[:,:,1], cmap="jet")
+        axes[2].set_title("obstacle 2 signed distance")
+        axes[3].imshow(input_tensor.squeeze(0)[:,:,2], cmap="jet")
+        axes[3].set_title("obstacle 3 signed distance")
+        axes[4].imshow(input_tensor.squeeze(0)[:,:,3], cmap="jet")
+        axes[4].set_title("charge signed distance")
         plt.pause(0.1)
 
     plt.show()
