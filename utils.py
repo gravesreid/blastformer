@@ -119,7 +119,7 @@ def visualize_results(input_pressure, target_pressure, predicted_pressure, run_n
 
 def visualize_max_pressure(true_max_pressure, predicted_max_pressure, run_name, epoch):
     """Visualizes and saves pressure field comparisons for validation."""
-    num_samples = min(true_max_pressure.shape[0] - true_max_pressure.shape[0] % 9, true_max_pressure.shape[0])
+    num_samples = min(max(true_max_pressure.shape[0] - true_max_pressure.shape[0] % 9, true_max_pressure.shape[0]), 3)
 
     for i in range(0, num_samples, 3):
         fig, axes = plt.subplots(3, 3, figsize=(12, 12))
@@ -127,12 +127,15 @@ def visualize_max_pressure(true_max_pressure, predicted_max_pressure, run_name, 
             true_max = true_max_pressure[i+j,:,:].cpu().numpy()
             predicted_max = predicted_max_pressure[i+j,:,:].cpu().numpy()
             error = np.abs(true_max - predicted_max)
-            axes[j, 0].imshow(true_max, cmap="jet")
+            im_true = axes[j, 0].imshow(true_max, cmap="jet")
             axes[j, 0].set_title(f"True Max Pressure {j+i}")
-            axes[j, 1].imshow(predicted_max, cmap="jet")
+            fig.colorbar(im_true, ax=axes[j, 0], fraction=0.046, pad=0.04)
+            im_pred = axes[j, 1].imshow(predicted_max, cmap="jet")
             axes[j, 1].set_title(f"Predicted Max Pressure {j+i}")
-            axes[j, 2].imshow(error, cmap="jet")
+            fig.colorbar(im_pred, ax=axes[j, 1], fraction=0.046, pad=0.04)
+            im_error = axes[j, 2].imshow(error, cmap="jet")
             axes[j, 2].set_title(f"Error {j+i}")
+            fig.colorbar(im_error, ax=axes[j, 2], fraction=0.046, pad=0.04)
 
         plt.tight_layout()
         vis_path = os.path.join("results", run_name, f"validation_epoch_{epoch}_sample{i}_to_{i+3}.jpg")

@@ -618,7 +618,6 @@ class PointWiseDecoder2DSimple(nn.Module):
                 propagate_pos,  # [b, n, 1]
                 input_pos=None,
                 ):
-
         x = self.coordinate_projection.forward(propagate_pos)
         z = self.decoding_transformer.forward(x, z, propagate_pos, input_pos)
 

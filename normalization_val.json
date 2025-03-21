@@ -1,1 +1,1 @@
-{"mean": 167089.765625, "std": 8586354.0, "max_mean": 2098330.75, "max_std": 95604256.0}
+{"max_mean": 2098330.75, "max_std": 95604256.0, "input_tensor_C1_mean": 4.6140971183776855, "input_tensor_C1_std": 2.471238851547241, "input_tensor_C2_mean": 3.4833152294158936, "input_tensor_C2_std": 2.163499355316162, "input_tensor_C3_mean": 4.446622848510742, "input_tensor_C3_std": 2.439574718475342, "input_tensor_C4_mean": 136.12998962402344, "input_tensor_C4_std": 96.30612182617188}

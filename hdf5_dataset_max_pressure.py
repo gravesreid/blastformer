@@ -32,44 +32,75 @@ class BlastDataset(Dataset):
             self.file_list.extend([
                 os.path.join(split_path, f) for f in os.listdir(split_path) if f.endswith(".hdf5")
             ])
+            print(f"Found {len(self.file_list)} files in {split_path}")
 
         if normalize:
             if os.path.exists(self.normalization_file):
-                self.mean, self.std, self.max_mean, self.max_std = self._load_normalization()
+                print(f"Loading normalization parameters from {self.normalization_file}")
+                self.max_mean, self.max_std, self.input_tensor_C1_mean, self.input_tensor_C1_std, self.input_tensor_C2_mean, self.input_tensor_C2_std, self.input_tensor_C3_mean, self.input_tensor_C3_std, self.input_tensor_C4_mean, self.input_tensor_C4_std = self._load_normalization()
             else:
-                self.mean, self.std, self.max_mean, self.max_std = self._compute_normalization()
+                print("Computing normalization parameters")
+                self.max_mean, self.max_std, self.input_tensor_C1_mean, self.input_tensor_C1_std, self.input_tensor_C2_mean, self.input_tensor_C2_std, self.input_tensor_C3_mean, self.input_tensor_C3_std, self.input_tensor_C4_mean, self.input_tensor_C4_std = self._compute_normalization()
 
 
     def _compute_normalization(self):
         """Compute mean and std of pressure values across dataset."""
-        total_sum = 0.0
-        total_sq_sum = 0.0
-        num_elements = 0
         max_pressure_sum = 0.0
         max_pressure_sq_sum = 0.0
         max_pressure_elements = 0
 
+        input_tensor_C1_sum = 0.0
+        input_tensor_C1_sq_sum = 0.0
+        input_tensor_C1_elements = 0
+        input_tensor_C2_sum = 0.0
+        input_tensor_C2_sq_sum = 0.0
+        input_tensor_C2_elements = 0
+        input_tensor_C3_sum = 0.0
+        input_tensor_C3_sq_sum = 0.0
+        input_tensor_C3_elements = 0
+        input_tensor_C4_sum = 0.0
+        input_tensor_C4_sq_sum = 0.0
+        input_tensor_C4_elements = 0
+
         for sim_path in self.file_list:
+            print(f"Processing {sim_path}")
             with h5py.File(sim_path, "r") as f:
                 max_pressure = f["max_pressure_grid"][:]
                 max_pressure_sum += max_pressure.sum()
                 max_pressure_sq_sum += (max_pressure ** 2).sum()
                 max_pressure_elements += max_pressure.size
-                pressures = f["pressures"][:]
-                for pressure in pressures:
-                    total_sum += pressure.sum()
-                    total_sq_sum += (pressure ** 2).sum()
-                    num_elements += pressure.size
+                input_tensors = f["input_tensor"][:]
+                input_tensor_C1 = input_tensors[:, :,  0]
+                input_tensor_C2 = input_tensors[:, :,  1]
+                input_tensor_C3 = input_tensors[:, :,  2]
+                input_tensor_C4 = input_tensors[:, :,  3]
+                input_tensor_C1_sum += input_tensor_C1.sum()
+                input_tensor_C1_sq_sum += (input_tensor_C1 ** 2).sum()
+                input_tensor_C1_elements += input_tensor_C1.size
+                input_tensor_C2_sum += input_tensor_C2.sum()
+                input_tensor_C2_sq_sum += (input_tensor_C2 ** 2).sum()
+                input_tensor_C2_elements += input_tensor_C2.size
+                input_tensor_C3_sum += input_tensor_C3.sum()
+                input_tensor_C3_sq_sum += (input_tensor_C3 ** 2).sum()
+                input_tensor_C3_elements += input_tensor_C3.size
+                input_tensor_C4_sum += input_tensor_C4.sum()
+                input_tensor_C4_sq_sum += (input_tensor_C4 ** 2).sum()
+                input_tensor_C4_elements += input_tensor_C4.size
 
-        mean = total_sum / num_elements
-        std = ((total_sq_sum / num_elements) - (mean ** 2)) ** 0.5
         max_pressure_mean = max_pressure_sum / max_pressure_elements
         max_pressure_std = ((max_pressure_sq_sum / max_pressure_elements) - (max_pressure_mean ** 2)) ** 0.5
-        print(f"Computed Normalization -> Mean: {mean:.6f}, Std: {std:.6f}")
+        input_tensor_C1_mean = input_tensor_C1_sum / input_tensor_C1_elements
+        input_tensor_C1_std = ((input_tensor_C1_sq_sum / input_tensor_C1_elements) - (input_tensor_C1_mean ** 2)) ** 0.5
+        input_tensor_C2_mean = input_tensor_C2_sum / input_tensor_C2_elements
+        input_tensor_C2_std = ((input_tensor_C2_sq_sum / input_tensor_C2_elements) - (input_tensor_C2_mean ** 2)) ** 0.5
+        input_tensor_C3_mean = input_tensor_C3_sum / input_tensor_C3_elements
+        input_tensor_C3_std = ((input_tensor_C3_sq_sum / input_tensor_C3_elements) - (input_tensor_C3_mean ** 2)) ** 0.5
+        input_tensor_C4_mean = input_tensor_C4_sum / input_tensor_C4_elements
+        input_tensor_C4_std = ((input_tensor_C4_sq_sum / input_tensor_C4_elements) - (input_tensor_C4_mean ** 2)) ** 0.5
         with open(self.normalization_file, 'w') as f:
-            json.dump({"mean": float(mean), "std": float(std), "max_mean": float(max_pressure_mean), "max_std": float(max_pressure_std)}, f)
+            json.dump({"max_mean": float(max_pressure_mean), "max_std": float(max_pressure_std), "input_tensor_C1_mean": float(input_tensor_C1_mean), "input_tensor_C1_std": float(input_tensor_C1_std), "input_tensor_C2_mean": float(input_tensor_C2_mean), "input_tensor_C2_std": float(input_tensor_C2_std), "input_tensor_C3_mean": float(input_tensor_C3_mean), "input_tensor_C3_std": float(input_tensor_C3_std), "input_tensor_C4_mean": float(input_tensor_C4_mean), "input_tensor_C4_std": float(input_tensor_C4_std)}, f)
         print(f"Saved normalization parameters to {self.normalization_file}")
-        return mean, std, max_pressure_mean, max_pressure_std
+        return max_pressure_mean, max_pressure_std, input_tensor_C1_mean, input_tensor_C1_std, input_tensor_C2_mean, input_tensor_C2_std, input_tensor_C3_mean, input_tensor_C3_std, input_tensor_C4_mean, input_tensor_C4_std
     
     def _load_normalization(self):
         """
@@ -78,7 +109,7 @@ class BlastDataset(Dataset):
         with open(self.normalization_file, 'r') as f:
             params = json.load(f)
         print(f"Loaded normalization parameters from {self.normalization_file}")
-        return params["mean"], params["std"], params["max_mean"], params["max_std"]
+        return params["max_mean"], params["max_std"], params["input_tensor_C1_mean"], params["input_tensor_C1_std"], params["input_tensor_C2_mean"], params["input_tensor_C2_std"], params["input_tensor_C3_mean"], params["input_tensor_C3_std"], params["input_tensor_C4_mean"], params["input_tensor_C4_std"]
 
     def __len__(self):
     # Each file gives you (90 - 10 + 1) possible samples
@@ -111,6 +142,10 @@ class BlastDataset(Dataset):
 
             if self.normalize:
                 max_pressure = (max_pressure - self.max_mean) / self.max_std
+                input_tensor[:,:,0] = (input_tensor[:,:,0] - self.input_tensor_C1_mean) / self.input_tensor_C1_std
+                input_tensor[:,:,1] = (input_tensor[:,:,1] - self.input_tensor_C2_mean) / self.input_tensor_C2_std
+                input_tensor[:,:,2] = (input_tensor[:,:,2] - self.input_tensor_C3_mean) / self.input_tensor_C3_std
+                input_tensor[:,:,3] = (input_tensor[:,:,3] - self.input_tensor_C4_mean) / self.input_tensor_C4_std
 
         return {
             "simulation_number": simulation_number,

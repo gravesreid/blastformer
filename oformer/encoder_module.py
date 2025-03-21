@@ -414,7 +414,6 @@ class SpatialEncoder2D(nn.Module):
                 x,  # [b, n, c]
                 input_pos,  # [b, n, 2]
                 ):
-
         x = self.to_embedding(x)
         x = self.dropout(x)
 
