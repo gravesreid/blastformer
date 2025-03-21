@@ -1,9 +1,9 @@
 import os
 import json
 
-simulation_data_path = "/home/reid/projects/blast_waves/dataset_parallel_large"
+simulation_data_path = "/home/reid/projects/blast_waves/dataset_parallel_2"
 
-output_dir = "/home/reid/projects/blast_waves/dataset_parallel_processed_large"
+output_dir = "/home/reid/projects/blast_waves/dataset_parallel_processed_2"
 
 if not os.path.exists(output_dir):
     os.makedirs(output_dir)

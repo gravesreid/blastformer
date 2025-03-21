@@ -13,37 +13,38 @@ import matplotlib.animation as animation
 class BlastDataset(Dataset):
     """Dataset for BlastFoam simulations stored in HDF5 format."""
 
-    def __init__(self, root_dir, normalization_file = "normalization_val.json", normalize=True, split="train"):
+    def __init__(self, root_dir, standardize=True, normalize= False, split="train", show_stats=False):
         """
         Args:
             root_dir (str): Root directory containing 'train', 'test', 'val' HDF5 subdirectories.
             k (int): Number of timesteps per sample.
-            normalize (bool): Whether to normalize the pressure data.
+            standardize (bool): Whether to standardize the pressure data.
         """
         self.root_dir = root_dir
+        self.standardize = standardize
         self.normalize = normalize
-        self.normalization_file = normalization_file
         self.split = split
 
         # Get all simulation files in the dataset
         self.file_list = []
+
         split_path = os.path.join(root_dir, self.split)
         if os.path.exists(split_path):
             self.file_list.extend([
                 os.path.join(split_path, f) for f in os.listdir(split_path) if f.endswith(".hdf5")
             ])
             print(f"Found {len(self.file_list)} files in {split_path}")
+        # remove outliers
+        self.compute_statistics(show_stats=show_stats)
 
-        if normalize:
-            if os.path.exists(self.normalization_file):
-                print(f"Loading normalization parameters from {self.normalization_file}")
-                self.max_mean, self.max_std, self.input_tensor_C1_mean, self.input_tensor_C1_std, self.input_tensor_C2_mean, self.input_tensor_C2_std, self.input_tensor_C3_mean, self.input_tensor_C3_std, self.input_tensor_C4_mean, self.input_tensor_C4_std = self._load_normalization()
-            else:
-                print("Computing normalization parameters")
-                self.max_mean, self.max_std, self.input_tensor_C1_mean, self.input_tensor_C1_std, self.input_tensor_C2_mean, self.input_tensor_C2_std, self.input_tensor_C3_mean, self.input_tensor_C3_std, self.input_tensor_C4_mean, self.input_tensor_C4_std = self._compute_normalization()
+        if standardize:
+            print("Computing standardization parameters")
+            self.max_mean, self.max_std, self.input_tensor_C1_mean, self.input_tensor_C1_std, self.input_tensor_C2_mean, self.input_tensor_C2_std, self.input_tensor_C3_mean, self.input_tensor_C3_std, self.input_tensor_C4_mean, self.input_tensor_C4_std = self._compute_standardization()
+        elif normalize:
+            print("Computing normalization parameters")
+            self.min_max_pressure, self.max_max_pressure, self.min_input_tensor_C1, self.max_input_tensor_C1, self.min_input_tensor_C2, self.max_input_tensor_C2, self.min_input_tensor_C3, self.max_input_tensor_C3, self.min_input_tensor_C4, self.max_input_tensor_C4 = self.compute_normalize()
 
-
-    def _compute_normalization(self):
+    def _compute_standardization(self):
         """Compute mean and std of pressure values across dataset."""
         max_pressure_sum = 0.0
         max_pressure_sq_sum = 0.0
@@ -97,19 +98,79 @@ class BlastDataset(Dataset):
         input_tensor_C3_std = ((input_tensor_C3_sq_sum / input_tensor_C3_elements) - (input_tensor_C3_mean ** 2)) ** 0.5
         input_tensor_C4_mean = input_tensor_C4_sum / input_tensor_C4_elements
         input_tensor_C4_std = ((input_tensor_C4_sq_sum / input_tensor_C4_elements) - (input_tensor_C4_mean ** 2)) ** 0.5
-        with open(self.normalization_file, 'w') as f:
+        with open(self.standardization_file, 'w') as f:
             json.dump({"max_mean": float(max_pressure_mean), "max_std": float(max_pressure_std), "input_tensor_C1_mean": float(input_tensor_C1_mean), "input_tensor_C1_std": float(input_tensor_C1_std), "input_tensor_C2_mean": float(input_tensor_C2_mean), "input_tensor_C2_std": float(input_tensor_C2_std), "input_tensor_C3_mean": float(input_tensor_C3_mean), "input_tensor_C3_std": float(input_tensor_C3_std), "input_tensor_C4_mean": float(input_tensor_C4_mean), "input_tensor_C4_std": float(input_tensor_C4_std)}, f)
-        print(f"Saved normalization parameters to {self.normalization_file}")
+        print(f"Saved standardization parameters to {self.standardization_file}")
         return max_pressure_mean, max_pressure_std, input_tensor_C1_mean, input_tensor_C1_std, input_tensor_C2_mean, input_tensor_C2_std, input_tensor_C3_mean, input_tensor_C3_std, input_tensor_C4_mean, input_tensor_C4_std
     
-    def _load_normalization(self):
-        """
-        Load normalization parameters from a file.
-        """
-        with open(self.normalization_file, 'r') as f:
-            params = json.load(f)
-        print(f"Loaded normalization parameters from {self.normalization_file}")
-        return params["max_mean"], params["max_std"], params["input_tensor_C1_mean"], params["input_tensor_C1_std"], params["input_tensor_C2_mean"], params["input_tensor_C2_std"], params["input_tensor_C3_mean"], params["input_tensor_C3_std"], params["input_tensor_C4_mean"], params["input_tensor_C4_std"]
+    def compute_normalize(self):
+        """Normalize the data if required."""
+        min_max_pressure = float('inf')
+        max_max_pressure = float('-inf')
+        min_input_tensor_C1 = float('inf')
+        max_input_tensor_C1 = float('-inf')
+        min_input_tensor_C2 = float('inf')
+        max_input_tensor_C2 = float('-inf')
+        min_input_tensor_C3 = float('inf')
+        max_input_tensor_C3 = float('-inf')
+        min_input_tensor_C4 = float('inf')
+        max_input_tensor_C4 = float('-inf')
+        for sim_path in self.file_list:
+            print(f"Processing {sim_path}")
+            with h5py.File(sim_path, "r") as f:
+                max_pressure = f["max_pressure_grid"][:]
+                min_max_pressure = min(min_max_pressure, max_pressure.min())
+                max_max_pressure = max(max_max_pressure, max_pressure.max())
+                input_tensors = f["input_tensor"][:]
+                input_tensor_C1 = input_tensors[:, :,  0]
+                input_tensor_C2 = input_tensors[:, :,  1]
+                input_tensor_C3 = input_tensors[:, :,  2]
+                input_tensor_C4 = input_tensors[:, :,  3]
+                min_input_tensor_C1 = min(min_input_tensor_C1, input_tensor_C1.min())
+                max_input_tensor_C1 = max(max_input_tensor_C1, input_tensor_C1.max())
+                min_input_tensor_C2 = min(min_input_tensor_C2, input_tensor_C2.min())
+                max_input_tensor_C2 = max(max_input_tensor_C2, input_tensor_C2.max())
+                min_input_tensor_C3 = min(min_input_tensor_C3, input_tensor_C3.min())
+                max_input_tensor_C3 = max(max_input_tensor_C3, input_tensor_C3.max())
+                min_input_tensor_C4 = min(min_input_tensor_C4, input_tensor_C4.min())
+                max_input_tensor_C4 = max(max_input_tensor_C4, input_tensor_C4.max())
+        print(f"Min max pressure: {min_max_pressure}, Max max pressure: {max_max_pressure}")
+        print(f"Min input tensor C1: {min_input_tensor_C1}, Max input tensor C1: {max_input_tensor_C1}")
+        print(f"Min input tensor C2: {min_input_tensor_C2}, Max input tensor C2: {max_input_tensor_C2}")
+        print(f"Min input tensor C3: {min_input_tensor_C3}, Max input tensor C3: {max_input_tensor_C3}")
+        print(f"Min input tensor C4: {min_input_tensor_C4}, Max input tensor C4: {max_input_tensor_C4}")
+        return min_max_pressure, max_max_pressure, min_input_tensor_C1, max_input_tensor_C1, min_input_tensor_C2, max_input_tensor_C2, min_input_tensor_C3, max_input_tensor_C3, min_input_tensor_C4, max_input_tensor_C4
+
+    def compute_statistics(self, show_stats=False):
+        """Compute statistics of the dataset."""
+        max_pressure_list = []
+        for sim_path in self.file_list:
+            print(f"Processing {sim_path}")
+            with h5py.File(sim_path, "r") as f:
+                max_pressure = f["max_pressure_grid"][:]
+                max_pressure_list.append(max(max_pressure.flatten()))
+        print(f"Max pressure mean: {np.mean(max_pressure_list)}, Max pressure std: {np.std(max_pressure_list)}")
+
+        # find outliers
+        sorted_max_pressure = sorted(max_pressure_list)
+        q1 = sorted_max_pressure[int(0.25 * len(sorted_max_pressure))]
+        q3 = sorted_max_pressure[int(0.75 * len(sorted_max_pressure))]
+        iqr = q3 - q1
+        lower_bound = q1 - 1.5 * iqr
+        upper_bound = q3 + 1.5 * iqr
+        outliers = [x for x in max_pressure_list if x < lower_bound or x > upper_bound]
+        print(f"Found {len(outliers)} outliers")
+
+        for sim_path in self.file_list:
+            with h5py.File(sim_path, "r") as f:
+                max_pressure = f["max_pressure_grid"][:]
+                charge_mass = f["charge_mass"][()].item()
+                if max(max_pressure.flatten()) in outliers:
+                    print(f"Outlier found in {sim_path}, charge mass: {charge_mass}")
+                    self.file_list.remove(sim_path)
+
+
+
 
     def __len__(self):
     # Each file gives you (90 - 10 + 1) possible samples
@@ -140,12 +201,18 @@ class BlastDataset(Dataset):
             input_tensor = np.array(f["input_tensor"], dtype=np.float32)
             input_tensor = torch.tensor(input_tensor, dtype=torch.float32)
 
-            if self.normalize:
+            if self.standardize:
                 max_pressure = (max_pressure - self.max_mean) / self.max_std
                 input_tensor[:,:,0] = (input_tensor[:,:,0] - self.input_tensor_C1_mean) / self.input_tensor_C1_std
                 input_tensor[:,:,1] = (input_tensor[:,:,1] - self.input_tensor_C2_mean) / self.input_tensor_C2_std
                 input_tensor[:,:,2] = (input_tensor[:,:,2] - self.input_tensor_C3_mean) / self.input_tensor_C3_std
                 input_tensor[:,:,3] = (input_tensor[:,:,3] - self.input_tensor_C4_mean) / self.input_tensor_C4_std
+            elif self.normalize:
+                max_pressure = (max_pressure - self.min_max_pressure) / (self.max_max_pressure - self.min_max_pressure)
+                input_tensor[:,:,0] = (input_tensor[:,:,0] - self.min_input_tensor_C1) / (self.max_input_tensor_C1 - self.min_input_tensor_C1)
+                input_tensor[:,:,1] = (input_tensor[:,:,1] - self.min_input_tensor_C2) / (self.max_input_tensor_C2 - self.min_input_tensor_C2)
+                input_tensor[:,:,2] = (input_tensor[:,:,2] - self.min_input_tensor_C3) / (self.max_input_tensor_C3 - self.min_input_tensor_C3)
+                input_tensor[:,:,3] = (input_tensor[:,:,3] - self.min_input_tensor_C4) / (self.max_input_tensor_C4 - self.min_input_tensor_C4)
 
         return {
             "simulation_number": simulation_number,
@@ -161,13 +228,14 @@ class BlastDataset(Dataset):
 
 
 def main():
-    dataset = BlastDataset("/home/reid/projects/blast_waves/hdf5_dataset_max_pressure", normalize=True)
+    dataset = BlastDataset("/home/reid/projects/blast_waves/hdf5_dataset_max_pressure_2", standardize=False, normalize=True, show_stats=True)
     dataloader = DataLoader(
     dataset,
     batch_size=1,
     shuffle=False,
     num_workers=min(12, os.cpu_count() - 2),  # Multi-worker loading
     )
+
 
     num_processed = 0
     max_pressure_list = []
@@ -183,23 +251,23 @@ def main():
         num_processed += 1
 
 
-    fig, axes = plt.subplots(1, 5, figsize=(12, 4))
+    fig, axes = plt.subplots(1, 5, figsize=(20, 4))
 
-    print(f'max_pressure_list length: {len(max_pressure_list)}')
     for i in range(len(max_pressure_list)):
-        plt.clf()  # Clear the current figure
+        for ax in axes:
+            ax.clear()
+
         max_pressure = max_pressure_list[i]
         input_tensor = input_tensor_list[i]
-        axes[0].imshow(max_pressure.squeeze(0), cmap="jet")
+
+        im0 = axes[0].imshow(max_pressure.squeeze(0), cmap="jet")
         axes[0].set_title("Max Pressure")
-        axes[1].imshow(input_tensor.squeeze(0)[:,:,0], cmap="jet")
-        axes[1].set_title("obstacle 1 signed distance")
-        axes[2].imshow(input_tensor.squeeze(0)[:,:,1], cmap="jet")
-        axes[2].set_title("obstacle 2 signed distance")
-        axes[3].imshow(input_tensor.squeeze(0)[:,:,2], cmap="jet")
-        axes[3].set_title("obstacle 3 signed distance")
-        axes[4].imshow(input_tensor.squeeze(0)[:,:,3], cmap="jet")
-        axes[4].set_title("charge signed distance")
+
+
+        for j in range(4):
+            im = axes[j+1].imshow(input_tensor.squeeze(0)[:, :, j], cmap="jet")
+            axes[j+1].set_title(f"Obstacle {j+1} signed distance" if j < 3 else "Charge signed distance")
+
         plt.pause(0.1)
 
     plt.show()

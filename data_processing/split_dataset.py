@@ -1,7 +1,7 @@
 import os
 
 
-dataset_directory = "/home/reid/projects/blast_waves/dataset_parallel_processed_large"
+dataset_directory = "/home/reid/projects/blast_waves/dataset_parallel_processed_2"
 
 train_directory = os.path.join(dataset_directory, "train")
 test_directory = os.path.join(dataset_directory, "test")
@@ -19,9 +19,9 @@ if not os.path.exists(val_directory):
 # take next 226 samples for testing
 # take next 225 samples for validation
 
-train_samples = 1050
-test_samples = 226
-val_samples = 225
+train_samples = 20
+test_samples = 0
+val_samples = 0
 
 # Move the simulation directories to the appropriate train, test, or val directories
 for i in range(train_samples):

@@ -203,6 +203,6 @@ def convert_dataset_to_hdf5(root_dir, output_dir):
 
 
 if __name__ == "__main__":
-    root_dataset_dir = "/home/reid/projects/blast_waves/dataset_parallel_processed_large"  
-    output_hdf5_dir = "/home/reid/projects/blast_waves/hdf5_dataset_max_pressure"  
+    root_dataset_dir = "/home/reid/projects/blast_waves/dataset_parallel_processed_2"  
+    output_hdf5_dir = "/home/reid/projects/blast_waves/hdf5_dataset_max_pressure_2"  
     convert_dataset_to_hdf5(root_dataset_dir, output_hdf5_dir)

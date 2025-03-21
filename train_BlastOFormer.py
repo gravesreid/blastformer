@@ -24,11 +24,11 @@ def train(args):
     setup_logging(args.run_name)
     device = args.device
 
-    training_dataset = BlastDataset(args.dataset_path, split="train", normalize=True)
+    training_dataset = BlastDataset(args.dataset_path, split="train", standardize=False, normalize=True)
     training_dataloader = DataLoader(training_dataset, batch_size=args.batch_size, shuffle=True, num_workers=min(16, os.cpu_count() - 1))
     l = len(training_dataloader)
 
-    validation_dataset = BlastDataset(args.dataset_path, split="val", normalize=True)
+    validation_dataset = BlastDataset(args.dataset_path, split="val", standardize=False, normalize=True)
     validation_dataloader = DataLoader(validation_dataset, batch_size=args.batch_size, shuffle=False, num_workers=min(16, os.cpu_count() - 1))
     if len(validation_dataloader) == 0:
         logging.error("Validation dataloader is empty. Check the dataset path.")
@@ -51,8 +51,8 @@ def train(args):
     ).to(device)
 
     optimizer = optim.AdamW(model.parameters(), lr=args.lr)
-    #scheduler = CosineAnnealingLR(optimizer, T_max=args.epochs, eta_min=0)
-    scheduler = ReduceLROnPlateau(optimizer, mode="min", factor=0.5, patience=1000, verbose=True)
+    scheduler = CosineAnnealingLR(optimizer, T_max=args.epochs, eta_min=0)
+    #scheduler = ReduceLROnPlateau(optimizer, mode="min", factor=0.5, patience=1000, verbose=True)
     l1 = nn.L1Loss()
     l2 = nn.MSELoss()
 
@@ -90,9 +90,9 @@ def train(args):
             loss = l1(prediction, y)
             l2_loss = l2(prediction, y)
             scaled_loss = scaledlp_loss(prediction, y, p=2, reduction="mean")
-            #loss.backward()
+            loss.backward()
             #scaled_loss.backward()
-            l2_loss.backward()
+            #l2_loss.backward()
             optimizer.step()
             pbar.set_postfix({"Loss": loss.item(), "scaled_loss": scaled_loss.item()})
             wandb.log({"train/loss": loss.item()})
@@ -158,11 +158,11 @@ def train(args):
 def launch():
     parser = argparse.ArgumentParser()
     parser.add_argument("--dataset_path", type=str, default="/home/reid/projects/blast_waves/hdf5_dataset_max_pressure")
-    parser.add_argument("--run_name", type=str, default="BlastOFormer_Home")
+    parser.add_argument("--run_name", type=str, default="BlastOFormer_Lab")
     parser.add_argument("--device", type=str, default="cuda" if torch.cuda.is_available() else "cpu")
     parser.add_argument("--epochs", type=int, default=10000)
     parser.add_argument("--batch_size", type=int, default=32)
-    parser.add_argument("--lr", type=float, default=8e-4)
+    parser.add_argument("--lr", type=float, default=3e-4)
     parser.add_argument("--patience", type=int, default=1000)
     parser.add_argument("--patch_size", type=int, default=3)
     args = parser.parse_args()
