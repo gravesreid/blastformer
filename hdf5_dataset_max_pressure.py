@@ -4,7 +4,7 @@ import torch
 from torch.utils.data import Dataset
 from torch.utils.data import DataLoader
 import json
-from utils import patchify_batch, unpatchify_batch, plot_reconstruction_all
+from utils import *
 import numpy as np
 import matplotlib.pyplot as plt
 import matplotlib.patches as patches
@@ -13,7 +13,7 @@ import matplotlib.animation as animation
 class BlastDataset(Dataset):
     """Dataset for BlastFoam simulations stored in HDF5 format."""
 
-    def __init__(self, root_dir, standardize=True, normalize= False, split="train", show_stats=False):
+    def __init__(self, root_dir, standardize=False, normalize=True, log_transform=True, split="train", show_stats=False, show_normalized_stats=False):
         """
         Args:
             root_dir (str): Root directory containing 'train', 'test', 'val' HDF5 subdirectories.
@@ -24,6 +24,7 @@ class BlastDataset(Dataset):
         self.standardize = standardize
         self.normalize = normalize
         self.split = split
+        self.log_transform = log_transform
 
         # Get all simulation files in the dataset
         self.file_list = []
@@ -35,7 +36,7 @@ class BlastDataset(Dataset):
             ])
             print(f"Found {len(self.file_list)} files in {split_path}")
         # remove outliers
-        self.compute_statistics(show_stats=show_stats)
+        self.compute_statistics(show_stats=show_stats, show_normalized_stats=show_normalized_stats)
 
         if standardize:
             print("Computing standardization parameters")
@@ -139,35 +140,97 @@ class BlastDataset(Dataset):
         print(f"Min input tensor C2: {min_input_tensor_C2}, Max input tensor C2: {max_input_tensor_C2}")
         print(f"Min input tensor C3: {min_input_tensor_C3}, Max input tensor C3: {max_input_tensor_C3}")
         print(f"Min input tensor C4: {min_input_tensor_C4}, Max input tensor C4: {max_input_tensor_C4}")
+        # convert to torch tensors
+        min_max_pressure = torch.tensor(min_max_pressure, dtype=torch.float32)
+        max_max_pressure = torch.tensor(max_max_pressure, dtype=torch.float32)
+        min_input_tensor_C1 = torch.tensor(min_input_tensor_C1, dtype=torch.float32)
+        max_input_tensor_C1 = torch.tensor(max_input_tensor_C1, dtype=torch.float32)
+        min_input_tensor_C2 = torch.tensor(min_input_tensor_C2, dtype=torch.float32)
+        max_input_tensor_C2 = torch.tensor(max_input_tensor_C2, dtype=torch.float32)
+        min_input_tensor_C3 = torch.tensor(min_input_tensor_C3, dtype=torch.float32)
+        max_input_tensor_C3 = torch.tensor(max_input_tensor_C3, dtype=torch.float32)
+        min_input_tensor_C4 = torch.tensor(min_input_tensor_C4, dtype=torch.float32)
+        max_input_tensor_C4 = torch.tensor(max_input_tensor_C4, dtype=torch.float32)
         return min_max_pressure, max_max_pressure, min_input_tensor_C1, max_input_tensor_C1, min_input_tensor_C2, max_input_tensor_C2, min_input_tensor_C3, max_input_tensor_C3, min_input_tensor_C4, max_input_tensor_C4
 
-    def compute_statistics(self, show_stats=False):
+    def compute_statistics(self, show_stats=False, show_normalized_stats=False):
         """Compute statistics of the dataset."""
-        max_pressure_list = []
+        max_pressure_max_list = []
+        max_pressure_min_list = []
+        max_pressure_mean_list = []
+        max_pressure_std_list = []
         for sim_path in self.file_list:
             print(f"Processing {sim_path}")
             with h5py.File(sim_path, "r") as f:
                 max_pressure = f["max_pressure_grid"][:]
-                max_pressure_list.append(max(max_pressure.flatten()))
-        print(f"Max pressure mean: {np.mean(max_pressure_list)}, Max pressure std: {np.std(max_pressure_list)}")
+                max_pressure_max_list.append(max(max_pressure.flatten()))
+                max_pressure_min_list.append(min(max_pressure.flatten()))
+                max_pressure_mean_list.append(np.mean(max_pressure.flatten()))
+                max_pressure_std_list.append(np.std(max_pressure.flatten()))
+        print(f"Max pressure mean: {np.mean(max_pressure_max_list)}, Max pressure std: {np.std(max_pressure_max_list)}")
 
-        # find outliers
-        sorted_max_pressure = sorted(max_pressure_list)
-        q1 = sorted_max_pressure[int(0.25 * len(sorted_max_pressure))]
-        q3 = sorted_max_pressure[int(0.75 * len(sorted_max_pressure))]
-        iqr = q3 - q1
-        lower_bound = q1 - 1.5 * iqr
-        upper_bound = q3 + 1.5 * iqr
-        outliers = [x for x in max_pressure_list if x < lower_bound or x > upper_bound]
-        print(f"Found {len(outliers)} outliers")
+        # find outliers for max pressure
+        max_q1, max_q3, max_iqr, max_lower_bound, max_upper_bound, max_outliers = get_iqr(max_pressure_max_list)
+        print(f"Found {len(max_outliers)} outliers in max pressure")
+        min_q1, min_q3, min_iqr, min_lower_bound, min_upper_bound, min_outliers = get_iqr(max_pressure_min_list)
+        print(f"Found {len(min_outliers)} outliers in min pressure")
+        mean_q1, mean_q3, mean_iqr, mean_lower_bound, mean_upper_bound, mean_outliers = get_iqr(max_pressure_mean_list)
+        print(f"Found {len(mean_outliers)} outliers in mean pressure")
+        std_q1, std_q3, std_iqr, std_lower_bound, std_upper_bound, std_outliers = get_iqr(max_pressure_std_list)
+
+        if show_stats:
+            plot_iqr(max_q1, max_q3, max_iqr, max_lower_bound, max_upper_bound, max_pressure_max_list,  "Max pressure max")
+            plot_iqr(min_q1, min_q3, min_iqr, min_lower_bound, min_upper_bound, max_pressure_min_list, "Max pressure min")
+            plot_iqr(mean_q1, mean_q3, mean_iqr, mean_lower_bound, mean_upper_bound, max_pressure_mean_list, "Max pressure mean")
+            plot_iqr(std_q1, std_q3, std_iqr, std_lower_bound, std_upper_bound, max_pressure_std_list, "Max pressure std")
+            plot_histogram(max_pressure_max_list, "Max pressure max")
+            plot_histogram(max_pressure_min_list, "Max pressure min")
+            plot_histogram(max_pressure_mean_list, "Max pressure mean")
+            plot_histogram(max_pressure_std_list, "Max pressure std")
+
 
         for sim_path in self.file_list:
             with h5py.File(sim_path, "r") as f:
                 max_pressure = f["max_pressure_grid"][:]
                 charge_mass = f["charge_mass"][()].item()
-                if max(max_pressure.flatten()) in outliers:
+                if max(max_pressure.flatten()) in max_outliers:
                     print(f"Outlier found in {sim_path}, charge mass: {charge_mass}")
                     self.file_list.remove(sim_path)
+                elif min(max_pressure.flatten()) in min_outliers:
+                    print(f"Outlier found in {sim_path}, charge mass: {charge_mass}")
+                    self.file_list.remove(sim_path)
+                elif np.mean(max_pressure.flatten()) in mean_outliers:
+                    print(f"Outlier found in {sim_path}, charge mass: {charge_mass}")
+                    self.file_list.remove(sim_path)
+                elif np.std(max_pressure.flatten()) in std_outliers:
+                    print(f"Outlier found in {sim_path}, charge mass: {charge_mass}")
+                    self.file_list.remove(sim_path)
+        
+        if show_normalized_stats:
+            min_max_pressure, max_max_pressure, _, _, _, _, _, _, _, _ = self.compute_normalize()
+            max_pressure_list = []
+            max_pressure_max_list = []
+            for sim_path in self.file_list:
+                with h5py.File(sim_path, "r") as f:
+                    max_pressure = f["max_pressure_grid"][:]
+                    max_pressure = np.array(max_pressure, dtype=np.float32)
+                    max_pressure = (max_pressure - min_max_pressure) / (max_max_pressure - min_max_pressure)
+                    max_pressure_list.append(max_pressure)
+                    max_pressure_max_list.append(max(max_pressure.flatten()))
+
+            max_q1, max_q3, max_iqr, max_lower_bound, max_upper_bound, max_outliers = get_iqr(max_pressure_max_list)
+            print(f"Found {len(max_outliers)} outliers in normalized max pressure")
+            plot_iqr(max_q1, max_q3, max_iqr, max_lower_bound, max_upper_bound, max_pressure_max_list,  "Normalized Max pressure max")
+            plot_histogram(max_pressure_max_list, "Normalized Max pressure max")
+
+            # remove outliers
+            max_pressure_list = [pressure for pressure in max_pressure_list if max(pressure.flatten()) not in max_outliers]
+            max_pressure_max_list = [max(pressure.flatten()) for pressure in max_pressure_list]
+            max_q1, max_q3, max_iqr, max_lower_bound, max_upper_bound, max_outliers = get_iqr(max_pressure_max_list)
+            print(f"Found {len(max_outliers)} outliers in normalized max pressure")
+            plot_iqr(max_q1, max_q3, max_iqr, max_lower_bound, max_upper_bound, max_pressure_max_list,  "Normalized Max pressure max")
+            plot_histogram(max_pressure_max_list, "Normalized Max pressure max")
+            
 
 
 
@@ -207,6 +270,10 @@ class BlastDataset(Dataset):
                 input_tensor[:,:,1] = (input_tensor[:,:,1] - self.input_tensor_C2_mean) / self.input_tensor_C2_std
                 input_tensor[:,:,2] = (input_tensor[:,:,2] - self.input_tensor_C3_mean) / self.input_tensor_C3_std
                 input_tensor[:,:,3] = (input_tensor[:,:,3] - self.input_tensor_C4_mean) / self.input_tensor_C4_std
+            elif self.log_transform:
+                max_pressure = torch.log(max_pressure)
+                self.min_max_pressure = torch.log(self.min_max_pressure)
+                self.max_max_pressure = torch.log(self.max_max_pressure)
             elif self.normalize:
                 max_pressure = (max_pressure - self.min_max_pressure) / (self.max_max_pressure - self.min_max_pressure)
                 input_tensor[:,:,0] = (input_tensor[:,:,0] - self.min_input_tensor_C1) / (self.max_input_tensor_C1 - self.min_input_tensor_C1)
@@ -228,7 +295,7 @@ class BlastDataset(Dataset):
 
 
 def main():
-    dataset = BlastDataset("/home/reid/projects/blast_waves/hdf5_dataset_max_pressure_2", standardize=False, normalize=True, show_stats=True)
+    dataset = BlastDataset("/home/reid/projects/blast_waves/hdf5_dataset_max_pressure_2", standardize=False, normalize=True, show_stats=False, show_normalized_stats=True)
     dataloader = DataLoader(
     dataset,
     batch_size=1,

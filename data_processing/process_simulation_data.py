@@ -1,9 +1,9 @@
 import os
 import json
 
-simulation_data_path = "/home/reid/projects/blast_waves/dataset_parallel_2"
+simulation_data_path = "/home/reid/projects/blast_waves/dataset_2"
 
-output_dir = "/home/reid/projects/blast_waves/dataset_parallel_processed_2"
+output_dir = "/home/reid/projects/blast_waves/dataset_processed_2"
 
 if not os.path.exists(output_dir):
     os.makedirs(output_dir)
@@ -104,8 +104,9 @@ def make_samples(probe_data, probe_locations, wall_locations, charge_data):
 
 def main():
     simulation_runs = os.listdir(simulation_data_path)
+    samples_processed = 0
     for run in simulation_runs:
-        print(f"Processing {run}")
+        print(f"Processing {run}, {samples_processed} samples processed")
         pressure_file = f"{run}/postProcessing/pressureProbes/0/p"
         wall_file = f"{run}/variables/wall_loc"
         charge_file = f"{run}/variables/charge_loc"
@@ -121,6 +122,7 @@ def main():
             output_path = os.path.join(run_output_dir, f"sample_{i}.json")
             with open(output_path, 'w') as f:
                 json.dump(sample, f, indent=4)
+        samples_processed += 1
     
 
 

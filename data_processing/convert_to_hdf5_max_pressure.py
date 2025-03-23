@@ -84,7 +84,7 @@ def compute_input_tensor(grid, obstacles, charge_center, charge_mass):
             d3 = signed_distance_to_box(p, boxes[2])
             # Channel 3: Charge feature (distance times mass)
             d_charge = signed_distance_to_point(p, (charge_center[0], charge_center[1]))
-            channel4 = charge_mass * d_charge
+            channel4 = charge_mass / d_charge 
 
             input_tensor[i, j, 0] = d1
             input_tensor[i, j, 1] = d2
@@ -133,7 +133,7 @@ def convert_simulation_to_hdf5(sim_dir, output_hdf5, probe_positions):
     charge_mass = np.float32(first_data["charge_data"]["mass"])
 
     pressures = []  
-    if total_timesteps > 900:
+    if total_timesteps > 1:
         for index in tqdm(range(total_timesteps), desc=f"Processing {sim_dir}", leave=False):
             # skip if total timesteps is less than 900
             # stop after 900 timesteps
@@ -184,7 +184,7 @@ def convert_dataset_to_hdf5(root_dir, output_dir):
 
     probe_positions = generate_probe_positions()
 
-    for split in ["train", "test", "val"]:
+    for split in ["train","test", "val"]:
         split_dir = os.path.join(root_dir, split)
         split_output_dir = os.path.join(output_dir, split)
         os.makedirs(split_output_dir, exist_ok=True)
@@ -203,6 +203,6 @@ def convert_dataset_to_hdf5(root_dir, output_dir):
 
 
 if __name__ == "__main__":
-    root_dataset_dir = "/home/reid/projects/blast_waves/dataset_parallel_processed_2"  
+    root_dataset_dir = "/home/reid/projects/blast_waves/dataset_processed_2"  
     output_hdf5_dir = "/home/reid/projects/blast_waves/hdf5_dataset_max_pressure_2"  
     convert_dataset_to_hdf5(root_dataset_dir, output_hdf5_dir)

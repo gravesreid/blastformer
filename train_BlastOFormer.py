@@ -157,8 +157,8 @@ def train(args):
 
 def launch():
     parser = argparse.ArgumentParser()
-    parser.add_argument("--dataset_path", type=str, default="/home/reid/projects/blast_waves/hdf5_dataset_max_pressure")
-    parser.add_argument("--run_name", type=str, default="BlastOFormer_Lab")
+    parser.add_argument("--dataset_path", type=str, default="/home/reid/projects/blast_waves/hdf5_dataset_max_pressure_2")
+    parser.add_argument("--run_name", type=str, default="BlastOFormer_Home")
     parser.add_argument("--device", type=str, default="cuda" if torch.cuda.is_available() else "cpu")
     parser.add_argument("--epochs", type=int, default=10000)
     parser.add_argument("--batch_size", type=int, default=32)

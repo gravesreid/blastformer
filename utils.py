@@ -10,52 +10,45 @@ import logging
 import wandb
 
     
-def patchify_batch(pressure_array, patch_size):
+def get_iqr(data):
     """
-    Patchifies a batched input tensor using CUDA if available.
-    
-    Args:
-        pressure_array (torch.Tensor): Input tensor of shape (batch_size, H, W).
-        patch_size (int): Size of the square patch.
-    
-    Returns:
-        torch.Tensor: Patchified tensor of shape (batch_size, num_patches_H * num_patches_W, patch_size * patch_size).
+    Calculate the interquartile range of a dataset.
+    data is expected to be an unsorted list of values.
     """
-    # Ensure input is a tensor and on the same device
-    if not isinstance(pressure_array, torch.Tensor):
-        pressure_array = torch.tensor(pressure_array)
+    sorted_data = sorted(data)
+    q1 = sorted_data[int(len(sorted_data) * 0.25)]
+    q3 = sorted_data[int(len(sorted_data) * 0.75)]
+    iqr = q3 - q1
+    lower_bound = q1 - 1.5 * iqr
+    upper_bound = q3 + 1.5 * iqr
+    outliers = [x for x in sorted_data if x < lower_bound or x > upper_bound]
+    return q1, q3, iqr, lower_bound, upper_bound, outliers
 
-    # Ensure it has a batch dimension
-    assert pressure_array.ndim == 3, "Input must have shape (batch_size, H, W)"
-
-    unfold = nn.Unfold(kernel_size=(patch_size, patch_size), stride=(patch_size, patch_size))
-    
-    # Extract patches using unfold
-    patches = unfold(pressure_array.unsqueeze(1)) # add channel dimension. The output shape is (batch_size, patch_size * patch_size, num_patches)
-    
-    return patches.float()
-
-def unpatchify_batch(patches, patch_size, H, W):
+def plot_iqr(q1, q3, iqr, lower_bound, upper_bound, data, title):
     """
-    patches: torch.Tensor of shape (batch_size, num_patches, patch_size*patch_size)
-    patch_size: size of patch in each dimension (for 2D)
-    H: height of original image
-    W: width of original image
-    
-    Return:
-        pressure_array: torch.Tensor of shape (batch_size, H, W)
+    Plot the data and its interquartile range.
     """
-    # Reshape patches to original image shape
-    print(f'patches shape: {patches.shape}')
-    print(f'patch_size: {patch_size}')
-    print(f'H: {H}')
+    fig, ax = plt.subplots()
+    data_array = np.array(data)
+    print(f'data_array shape: {data_array.shape}')
+    ax.boxplot(data_array)
+    ax.set_title(f"Interquartile Range: {iqr:.2f}")
+    ax.set_xlabel(f"Q1: {q1:.2f}, Q3: {q3:.2f}")
+    ax.set_ylabel(f"Lower Bound: {lower_bound:.2f}, Upper Bound: {upper_bound:.2f}")
+    ax.set_xticks([1])
+    ax.set_xticklabels(["Data"])
+    plt.show()
 
-    fold = nn.Fold(output_size=(H, W), kernel_size=(patch_size, patch_size), stride=(patch_size, patch_size))
-    patches = fold(patches).squeeze(1) # remove channel dimension
-    original_array = patches
-    
-    return original_array
-
+def plot_histogram(data, title, bins=10):
+    """
+    Plot a histogram of the data.
+    """
+    fig, ax = plt.subplots()
+    ax.hist(data, bins=bins)
+    ax.set_title(title)
+    ax.set_xlabel("Value")
+    ax.set_ylabel("Frequency")
+    plt.show()
     
 def custom_collate(batch):
     """
