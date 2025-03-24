@@ -28,6 +28,9 @@ def train(args):
     training_dataloader = DataLoader(training_dataset, batch_size=args.batch_size, shuffle=True, num_workers=min(16, os.cpu_count() - 1))
     l = len(training_dataloader)
 
+    min_max_pressure = training_dataset.min_max_pressure
+    max_max_pressure = training_dataset.max_max_pressure
+
     validation_dataset = BlastDataset(args.dataset_path, split="val", standardize=False, normalize=True)
     validation_dataloader = DataLoader(validation_dataset, batch_size=args.batch_size, shuffle=False, num_workers=min(16, os.cpu_count() - 1))
     if len(validation_dataloader) == 0:
@@ -90,9 +93,9 @@ def train(args):
             loss = l1(prediction, y)
             l2_loss = l2(prediction, y)
             scaled_loss = scaledlp_loss(prediction, y, p=2, reduction="mean")
-            loss.backward()
+            #loss.backward()
             #scaled_loss.backward()
-            #l2_loss.backward()
+            l2_loss.backward()
             optimizer.step()
             pbar.set_postfix({"Loss": loss.item(), "scaled_loss": scaled_loss.item()})
             wandb.log({"train/loss": loss.item()})
@@ -129,8 +132,9 @@ def train(args):
                 epoch_val_scaled_loss += scaled_loss.item()
 
                 if j == 0:
-                    target = y
-                    model_prediction = prediction
+                    # transform the target and model prediction back to the original scale
+                    target = torch.exp(y * (max_max_pressure - min_max_pressure) + min_max_pressure)
+                    model_prediction = torch.exp(prediction * (max_max_pressure - min_max_pressure) + min_max_pressure)
 
         epoch_val_loss /= len(validation_dataloader)
         epoch_val_scaled_loss /= len(validation_dataloader)
@@ -157,8 +161,8 @@ def train(args):
 
 def launch():
     parser = argparse.ArgumentParser()
-    parser.add_argument("--dataset_path", type=str, default="/home/reid/projects/blast_waves/hdf5_dataset_max_pressure_2")
-    parser.add_argument("--run_name", type=str, default="BlastOFormer_Home")
+    parser.add_argument("--dataset_path", type=str, default="/home/reid/projects/blast_waves/hdf5_dataset_max_pressure")
+    parser.add_argument("--run_name", type=str, default="BlastOFormer_Home_og_dataset_L2_loss")
     parser.add_argument("--device", type=str, default="cuda" if torch.cuda.is_available() else "cpu")
     parser.add_argument("--epochs", type=int, default=10000)
     parser.add_argument("--batch_size", type=int, default=32)

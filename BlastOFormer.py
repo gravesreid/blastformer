@@ -54,9 +54,16 @@ class BlastOFormer(nn.Module):
         self.unpatch_embed = UnpatchEmbed(decoder_out_channels, decoder_out_channels, patch_size, img_size)
 
     def forward(self, x, pos):
+        print(f'x shape in forward:{x.shape}')
+        print(f'pos shape in forward: {pos.shape}')
         x = self.patch_embed(x)
+        print(f'x shape after patch_embed: {x.shape}')
         pos = self.position_patch_embed(pos)
+        print(f'pos shape after position_patch_embed: {pos.shape}')
         z = self.encoder(x, pos)
+        print(f'z shape after encoder: {z.shape}')
         x = self.decoder(z, pos, pos)
+        print(f'x shape after decoder: {x.shape}')
         x = self.unpatch_embed(x)
+        print(f'x shape after unpatch_embed: {x.shape}')
         return x
