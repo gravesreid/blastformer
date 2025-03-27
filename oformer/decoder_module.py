@@ -622,6 +622,7 @@ class PointWiseDecoder2DSimple(nn.Module):
         z = self.decoding_transformer.forward(x, z, propagate_pos, input_pos)
 
         z = self.decode(torch.cat((z, propagate_pos), dim=-1))
+        print(f'z shape in decoder: {z.shape}')
         return z  # [b, n, c]
 
 

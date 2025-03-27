@@ -49,6 +49,15 @@ def plot_histogram(data, title, bins=10):
     ax.set_xlabel("Value")
     ax.set_ylabel("Frequency")
     plt.show()
+
+def inverse_transform(data, min, max, normalized):
+    """
+    Inverse transform data that was log transformed and then min-max scaled.
+    """
+    if normalized:
+        data = data * (max - min) + min
+    data = torch.exp(data)
+    return data
     
 def custom_collate(batch):
     """
@@ -137,6 +146,7 @@ def visualize_max_pressure(true_max_pressure, predicted_max_pressure, run_name, 
         wandb.log({f"Validation Predictions Epoch {epoch} timestep {i} to {i+3}": wandb.Image(vis_path)})
         logging.info(f"Saved validation visualization to {vis_path}")
         plt.close(fig)
+
 
 def plot_reconstruction_all(data_sample, reconstructed_pressures, index=0, save_dir=None, show=False):
     """

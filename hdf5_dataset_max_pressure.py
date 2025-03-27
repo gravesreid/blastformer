@@ -41,9 +41,12 @@ class BlastDataset(Dataset):
         if standardize:
             print("Computing standardization parameters")
             self.max_mean, self.max_std, self.input_tensor_C1_mean, self.input_tensor_C1_std, self.input_tensor_C2_mean, self.input_tensor_C2_std, self.input_tensor_C3_mean, self.input_tensor_C3_std, self.input_tensor_C4_mean, self.input_tensor_C4_std = self._compute_standardization()
-        elif normalize:
+        elif normalize or log_transform:
             print("Computing normalization parameters")
             self.min_max_pressure, self.max_max_pressure, self.min_input_tensor_C1, self.max_input_tensor_C1, self.min_input_tensor_C2, self.max_input_tensor_C2, self.min_input_tensor_C3, self.max_input_tensor_C3, self.min_input_tensor_C4, self.max_input_tensor_C4 = self.compute_normalize()
+            if log_transform:
+                self.min_max_pressure = torch.log(self.min_max_pressure)
+                self.max_max_pressure = torch.log(self.max_max_pressure)
 
     def _compute_standardization(self):
         """Compute mean and std of pressure values across dataset."""
@@ -270,16 +273,14 @@ class BlastDataset(Dataset):
                 input_tensor[:,:,1] = (input_tensor[:,:,1] - self.input_tensor_C2_mean) / self.input_tensor_C2_std
                 input_tensor[:,:,2] = (input_tensor[:,:,2] - self.input_tensor_C3_mean) / self.input_tensor_C3_std
                 input_tensor[:,:,3] = (input_tensor[:,:,3] - self.input_tensor_C4_mean) / self.input_tensor_C4_std
-            elif self.log_transform:
+            if self.log_transform:
                 max_pressure = torch.log(max_pressure)
-                self.min_max_pressure = torch.log(self.min_max_pressure)
-                self.max_max_pressure = torch.log(self.max_max_pressure)
-            elif self.normalize:
+            if self.normalize:
                 max_pressure = (max_pressure - self.min_max_pressure) / (self.max_max_pressure - self.min_max_pressure)
-                input_tensor[:,:,0] = (input_tensor[:,:,0] - self.min_input_tensor_C1) / (self.max_input_tensor_C1 - self.min_input_tensor_C1)
-                input_tensor[:,:,1] = (input_tensor[:,:,1] - self.min_input_tensor_C2) / (self.max_input_tensor_C2 - self.min_input_tensor_C2)
-                input_tensor[:,:,2] = (input_tensor[:,:,2] - self.min_input_tensor_C3) / (self.max_input_tensor_C3 - self.min_input_tensor_C3)
-                input_tensor[:,:,3] = (input_tensor[:,:,3] - self.min_input_tensor_C4) / (self.max_input_tensor_C4 - self.min_input_tensor_C4)
+                #input_tensor[:,:,0] = (input_tensor[:,:,0] - self.min_input_tensor_C1) / (self.max_input_tensor_C1 - self.min_input_tensor_C1)
+                #input_tensor[:,:,1] = (input_tensor[:,:,1] - self.min_input_tensor_C2) / (self.max_input_tensor_C2 - self.min_input_tensor_C2)
+                #input_tensor[:,:,2] = (input_tensor[:,:,2] - self.min_input_tensor_C3) / (self.max_input_tensor_C3 - self.min_input_tensor_C3)
+                #input_tensor[:,:,3] = (input_tensor[:,:,3] - self.min_input_tensor_C4) / (self.max_input_tensor_C4 - self.min_input_tensor_C4)
 
         return {
             "simulation_number": simulation_number,

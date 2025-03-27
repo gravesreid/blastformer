@@ -19,17 +19,17 @@ if not os.path.exists(val_directory):
 # take next 226 samples for testing
 # take next 225 samples for validation
 
-train_samples = 200
-test_samples = 50
-val_samples = 47
+train_samples = 1100
+test_samples = 200
+val_samples = 200
 
 # Move the simulation directories to the appropriate train, test, or val directories
-for i in range(1,train_samples,1):
+for i in range(1,train_samples+1,1):
     os.rename(os.path.join(dataset_directory, f"{i}"), os.path.join(train_directory, f"{i}"))
     print(f"Moved {i} to train")
-for i in range(train_samples, train_samples + test_samples):
+for i in range(train_samples+1, train_samples + test_samples + 1):
     os.rename(os.path.join(dataset_directory, f"{i}"), os.path.join(test_directory, f"{i}"))
     print(f"Moved {i} to test")
-for i in range(train_samples + test_samples, train_samples + test_samples + val_samples):
+for i in range(train_samples + test_samples + 1, train_samples + test_samples + val_samples + 1):
     os.rename(os.path.join(dataset_directory, f"{i}"), os.path.join(val_directory, f"{i}"))
     print(f"Moved {i} to val")
