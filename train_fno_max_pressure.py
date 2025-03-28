@@ -13,7 +13,7 @@ import wandb
 import math
 import matplotlib.pyplot as plt
 from utils import *
-from hdf5_dataset_new import *
+from hdf5_dataset_max_pressure import *
 # Import the new model. Adjust the import path as needed.
 from fno import FNO2d_cond
 
@@ -22,12 +22,16 @@ logging.basicConfig(format="%(asctime)s - %(levelname)s: %(message)s", level=log
 def train(args):
     setup_logging(args.run_name)
     device = args.device
+    normalize = False
 
-    training_dataset = BlastDataset(args.dataset_path, split="train", normalize=False)
+    training_dataset = BlastDataset(args.dataset_path, split="train", standardize=False, normalize=normalize)
     training_dataloader = DataLoader(training_dataset, batch_size=args.batch_size, shuffle=True, num_workers=min(16, os.cpu_count() - 1))
     l = len(training_dataloader)
 
-    validation_dataset = BlastDataset(args.dataset_path, split="val", normalize=True)
+    min_max_pressure = training_dataset.min_max_pressure
+    max_max_pressure = training_dataset.max_max_pressure
+
+    validation_dataset = BlastDataset(args.dataset_path, split="val", standardize=False, normalize=normalize)
     validation_dataloader = DataLoader(validation_dataset, batch_size=args.batch_size, shuffle=False, num_workers=min(16, os.cpu_count() - 1))
     if len(validation_dataloader) == 0:
         logging.error("Validation dataloader is empty. Check the dataset path.")
@@ -84,11 +88,11 @@ def train(args):
         for i, batch in enumerate(pbar):
             charge_mass = batch["charge_mass"].to(device)
             charge_mass_expanded = charge_mass.view(-1, 1, 1, 1).expand(-1, -1, grid_size, grid_size)
+            print(f"charge_mass_expanded shape: {charge_mass_expanded.shape}")
             charge_center = batch["charge_center"].to(device)
             wall_1 = batch["wall_1"].to(device)
             wall_2 = batch["wall_2"].to(device)
             wall_3 = batch["wall_3"].to(device)
-            pressures = batch["pressures"].to(device)
             max_pressure = batch["max_pressure"].to(device)
             conditioning = torch.cat([charge_center, wall_1, wall_2, wall_3], dim=1)
             # make grid with charge mass in one channel and charge center in the other
@@ -133,9 +137,7 @@ def train(args):
                 val_wall_1 = val_batch["wall_1"].to(device)
                 val_wall_2 = val_batch["wall_2"].to(device)
                 val_wall_3 = val_batch["wall_3"].to(device)
-                val_pressures = val_batch["pressures"].to(device)
                 val_max_pressure = val_batch["max_pressure"].to(device)
-                val_current_pressure = val_pressures[:, 0, :, :].unsqueeze(1)
                 val_conditioning = torch.cat([ val_charge_center, val_wall_1, val_wall_2, val_wall_3, ], dim=1)
                 #model_input = val_pressures[:, 0, :, :].unsqueeze(1)
                 model_input = val_charge_mass_expanded
@@ -209,7 +211,7 @@ def launch():
     parser.add_argument('--width', type=int, default=24)
     parser.add_argument('--cond_channels', type=int, default=21, help="Dimension of conditioning embedding (matches conditioning dimension[1])")
     parser.add_argument('--num_layers', type=int, default=4)
-    parser.add_argument('--dataset_path', type=str, default="/home/reid/projects/blast_waves/hdf5_dataset_low_res_1_simulation_per_file_10_chunks")
+    parser.add_argument('--dataset_path', type=str, default="/home/reid/projects/blast_waves/hdf5_dataset_max_pressure")
     parser.add_argument('--device', type=str, default="cuda")
     parser.add_argument('--lr', type=float, default=1e-4)
     parser.add_argument('--grid_size', type=int, default=99)
