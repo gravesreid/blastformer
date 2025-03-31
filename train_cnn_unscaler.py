@@ -15,31 +15,33 @@ import matplotlib.pyplot as plt
 from utils import *
 from hdf5_dataset_max_pressure import *
 from BlastOFormer import BlastOFormer
-
+from fno import FNO2d_cond
+from CNN import *
+import time
+from unscaler_cnn import UnscalerCNN
 
 logging.basicConfig(format="%(asctime)s - %(levelname)s: %(message)s", level=logging.INFO, datefmt="%I:%M:%S")
-
 
 def train(args):
     setup_logging(args.run_name)
     device = args.device
     normalize = False
-    log_transform = True
 
-    training_dataset = BlastDataset(args.dataset_path, split="train", standardize=False, normalize=normalize, log_transform=log_transform)
+    training_dataset = BlastDataset(args.dataset_path, split="train", standardize=False, normalize=normalize)
     training_dataloader = DataLoader(training_dataset, batch_size=args.batch_size, shuffle=True, num_workers=min(16, os.cpu_count() - 1))
     l = len(training_dataloader)
 
     min_max_pressure = training_dataset.min_max_pressure
     max_max_pressure = training_dataset.max_max_pressure
 
-    validation_dataset = BlastDataset(args.dataset_path, split="val", standardize=False, normalize=normalize, log_transform=log_transform)
+    validation_dataset = BlastDataset(args.dataset_path, split="val", standardize=False, normalize=normalize)
     validation_dataloader = DataLoader(validation_dataset, batch_size=args.batch_size, shuffle=False, num_workers=min(16, os.cpu_count() - 1))
     if len(validation_dataloader) == 0:
         logging.error("Validation dataloader is empty. Check the dataset path.")
         return
-    
-    model = BlastOFormer(
+
+
+    blastoformer = BlastOFormer(
         encoder_input_channels=4,
         encoder_in_emb_dim=96,
         encoder_out_seq_emb_dim=256,
@@ -55,6 +57,25 @@ def train(args):
         img_size=99
     ).to(device)
 
+    model = UnscalerCNN().to(device)
+
+
+
+
+    # Load the model checkpoint
+    # Load the BlastOFormer model
+    checkpoint_path = os.path.join(args.checkpoint_dir, args.blastoformer_name)
+    if os.path.exists(checkpoint_path):
+        logging.info(f"Loading model from {checkpoint_path}")
+        blastoformer.load_state_dict(torch.load(checkpoint_path))
+    else:
+        logging.error(f"Checkpoint not found at {checkpoint_path}")
+        return
+
+
+    # Set the model to evaluation mode
+    blastoformer.eval()
+
     optimizer = optim.AdamW(model.parameters(), lr=args.lr)
     scheduler = CosineAnnealingLR(optimizer, T_max=args.epochs, eta_min=0)
     #scheduler = ReduceLROnPlateau(optimizer, mode="min", factor=0.5, patience=1000, verbose=True)
@@ -64,7 +85,7 @@ def train(args):
 
     logger = SummaryWriter(os.path.join("runs", args.run_name))
 
-    wandb.init(project="BlastOFormer", name=args.run_name, config=args)
+    wandb.init(project="CNN_unscaler", name=args.run_name, config=args)
     config = wandb.config
     config.epochs = args.epochs
     config.batch_size = args.batch_size
@@ -91,8 +112,10 @@ def train(args):
             #probe_positions = rearrange(probe_positions,"b w h c -> b (w h) c")
             x = batch["input_tensor"].to(device)
             #x = rearrange(x,"b w h c -> b (w h) c")
-            y = max_pressure.unsqueeze(-1)
-            prediction = model(x, probe_positions)
+            y = inverse_transform(max_pressure, min_max_pressure, max_max_pressure, normalized=normalize)
+            prediction = blastoformer(x, probe_positions).squeeze()
+            prediction = inverse_transform(prediction, min_max_pressure, max_max_pressure, normalized=normalize)
+            prediction = model(prediction)
             loss = l1(prediction, y)
             l2_loss = l2(prediction, y)
             huber_loss = huber(prediction, y)
@@ -127,8 +150,10 @@ def train(args):
                 max_pressure = batch["max_pressure"].to(device)
                 probe_positions = batch["probe_positions"][:,:,:,0:2].to(device)
                 x = batch["input_tensor"].to(device)
-                y = max_pressure.unsqueeze(-1)
-                prediction = model(x, probe_positions)
+                y = inverse_transform(max_pressure, min_max_pressure, max_max_pressure, normalized=normalize)
+                prediction = blastoformer(x, probe_positions).squeeze()
+                prediction = inverse_transform(prediction, min_max_pressure, max_max_pressure, normalized=normalize)
+                prediction = model(prediction)
                 #loss = l1(prediction, y)
                 loss = MAPE_error(prediction, y)
                 scaled_loss = scaledlp_loss(prediction, y, p=2, reduction="mean")
@@ -152,11 +177,6 @@ def train(args):
             print(f"Visualizing max pressure predictions for epoch {epoch}, run {args.run_name}")
             visualize_max_pressure(target, model_prediction, args.run_name, epoch)
             # also visualize for original scaled values
-            if log_transform:
-                target_unscaled = inverse_transform(target.detach().cpu(), min_max_pressure, max_max_pressure, normalized=normalize)
-                model_prediction_unscaled = inverse_transform(model_prediction.detach().cpu(), min_max_pressure, max_max_pressure, normalized=normalize)
-                print(f"Visualizing max pressure predictions for epoch {epoch}, run {args.run_name} (unscaled)")
-                visualize_max_pressure(target_unscaled, model_prediction_unscaled, args.run_name + "_unscaled", epoch)
 
         if epoch_val_loss < best_loss:
             print(f'Validation loss decreased from {best_loss:.4f} to {epoch_val_loss:.4f}. Saving model...')
@@ -171,18 +191,29 @@ def train(args):
 
 
 
+
+
+
+
+
 def launch():
     parser = argparse.ArgumentParser()
+    # BlastOFormer parameters
     parser.add_argument("--dataset_path", type=str, default="/home/reid/projects/blast_waves/hdf5_dataset_max_pressure")
-    parser.add_argument("--run_name", type=str, default="BlastOFormer_Home_og_dataset_loss_log_transformed")
+    parser.add_argument("--run_name", type=str, default="Unscaler_CNN_home")
+    parser.add_argument("--blastoformer_name", type=str, default="BlastOFormer_Home_og_dataset_l1_loss_log_only.pt")
     parser.add_argument("--device", type=str, default="cuda" if torch.cuda.is_available() else "cpu")
-    parser.add_argument("--epochs", type=int, default=10000)
+    parser.add_argument("--checkpoint_dir", type=str, default="/home/reid/projects/blast_waves/blastformer/models")
+    parser.add_argument("--patch_size", type=int, default=3)
+
+    parser.add_argument("--epochs", type=int, default=1000)
     parser.add_argument("--batch_size", type=int, default=32)
     parser.add_argument("--lr", type=float, default=3e-4)
-    parser.add_argument("--patience", type=int, default=1000)
-    parser.add_argument("--patch_size", type=int, default=3)
+    parser.add_argument("--patience", type=int, default=100)
+
     args = parser.parse_args()
     train(args)
+
 
 if __name__ == "__main__":
     launch()

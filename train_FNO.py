@@ -176,7 +176,7 @@ def launch():
     parser.add_argument("--device", type=str, default="cuda" if torch.cuda.is_available() else "cpu")
     parser.add_argument("--epochs", type=int, default=1000)
     parser.add_argument("--batch_size", type=int, default=32)
-    parser.add_argument("--lr", type=float, default=3e-4)
+    parser.add_argument("--lr", type=float, default=1e-4)
     parser.add_argument("--patience", type=int, default=100)
     parser.add_argument("--patch_size", type=int, default=3)
     parser.add_argument('--time_window', type=int, default=1, help="Number of channels for pressure input")

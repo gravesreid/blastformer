@@ -9,6 +9,15 @@ import os
 import logging
 import wandb
 
+def MAPE_error(y_true, y_pred):
+    """
+    Calculate Mean Absolute Percentage Error (MAPE).
+    y_true: true values
+    y_pred: predicted values
+    """
+    y_true = y_true + 1e-8  # Avoid division by zero
+    mape = torch.mean(torch.abs((y_true - y_pred) / torch.abs(y_true))) 
+    return mape
     
 def get_iqr(data):
     """
@@ -94,7 +103,6 @@ def scaledlp_loss(input: torch.Tensor, target: torch.Tensor, p: int = 2, reducti
         raise NotImplementedError(reduction)
 
 
-
 def visualize_results(input_pressure, target_pressure, predicted_pressure, run_name, epoch):
     """Visualizes and saves pressure field comparisons for validation."""
     num_samples = min(input_pressure.shape[0] - input_pressure.shape[0] % 9, input_pressure.shape[0])
@@ -147,6 +155,23 @@ def visualize_max_pressure(true_max_pressure, predicted_max_pressure, run_name, 
         logging.info(f"Saved validation visualization to {vis_path}")
         plt.close(fig)
 
+def visualize_testing(true_pressure, predicted_pressure_1, model_1_name):
+    """3x3 grid with first column showing truth, second column showing prediction, and third column showing percentage error, with each row representing a different model."""
+
+    error_1 = np.abs(true_pressure - predicted_pressure_1)/np.abs(true_pressure)
+    error_1 = np.nan_to_num(error_1, nan=0.0, posinf=0.0, neginf=0.0)
+    fig, axes = plt.subplots(1, 3, figsize=(12, 12))
+    im_true = axes[0].imshow(true_pressure, cmap="jet")
+    axes[0].set_title("True Pressure")
+    fig.colorbar(im_true, ax=axes[0], fraction=0.046, pad=0.04)
+    im_pred_1 = axes[1].imshow(predicted_pressure_1, cmap="jet")
+    axes[1].set_title(f"{model_1_name} Predicted Pressure")
+    fig.colorbar(im_pred_1, ax=axes[1], fraction=0.046, pad=0.04)
+    im_error_1 = axes[2].imshow(error_1, cmap="jet")
+    axes[2].set_title(f"{model_1_name} Error")
+    fig.colorbar(im_error_1, ax=axes[2], fraction=0.046, pad=0.04)
+    plt.tight_layout()
+    plt.show()
 
 def plot_reconstruction_all(data_sample, reconstructed_pressures, index=0, save_dir=None, show=False):
     """
