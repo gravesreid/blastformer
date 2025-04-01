@@ -18,6 +18,7 @@ from BlastOFormer import BlastOFormer
 from fno import FNO2d_cond
 from CNN import *
 import time
+from unscaler_cnn import UnscalerCNN
 
 logging.basicConfig(format="%(asctime)s - %(levelname)s: %(message)s", level=logging.INFO, datefmt="%I:%M:%S")
 \
@@ -61,6 +62,8 @@ def test(args):
 
     model_3 = BlastCNN().to(device)
 
+    unscaler = UnscalerCNN().to(device)
+
 
     # Load the model checkpoint
     # Load the BlastOFormer model
@@ -85,6 +88,15 @@ def test(args):
     if os.path.exists(checkpoint_path):
         logging.info(f"Loading model from {checkpoint_path}")
         model_3.load_state_dict(torch.load(checkpoint_path))
+    else:
+        logging.error(f"Checkpoint not found at {checkpoint_path}")
+        return
+    
+    # Load the unscaler model
+    checkpoint_path = os.path.join(args.checkpoint_dir, args.unscaling_CNN_run_name)
+    if os.path.exists(checkpoint_path):
+        logging.info(f"Loading model from {checkpoint_path}")
+        unscaler.load_state_dict(torch.load(checkpoint_path))
     else:
         logging.error(f"Checkpoint not found at {checkpoint_path}")
         return
@@ -132,7 +144,8 @@ def test(args):
             start_time = time.time()
             prediction = model_1(x, probe_positions)
             end_time = time.time()
-            prediction_unscaled = inverse_transform(prediction.detach().cpu(), min_max_pressure, max_max_pressure, normalized=normalize)
+            prediction_unscaled = inverse_transform(prediction.detach().cpu(), min_max_pressure, max_max_pressure, normalized=normalize).to(device)
+            prediction_unscaled = unscaler(prediction_unscaled.squeeze(-1)).detach().cpu()
             max_pressure_unscaled = inverse_transform(max_pressure.detach().cpu(), min_max_pressure, max_max_pressure, normalized=normalize)
             prediction_time = end_time - start_time
             prediction_times.append(prediction_time)
@@ -219,6 +232,9 @@ def launch():
 
     # CNN parameters
     parser.add_argument("--CNN_run_name", type=str, default="CNN_Home_OG_dataset_l1_loss_log.pt")
+
+    # Unscaling CNN parameters
+    parser.add_argument("--unscaling_CNN_run_name", type=str, default="Unscaler_CNN_home.pt")
 
     args = parser.parse_args()
 

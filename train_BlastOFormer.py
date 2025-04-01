@@ -177,10 +177,10 @@ def launch():
     parser.add_argument("--run_name", type=str, default="BlastOFormer_Home_og_dataset_loss_log_transformed")
     parser.add_argument("--device", type=str, default="cuda" if torch.cuda.is_available() else "cpu")
     parser.add_argument("--epochs", type=int, default=10000)
-    parser.add_argument("--batch_size", type=int, default=32)
-    parser.add_argument("--lr", type=float, default=3e-4)
+    parser.add_argument("--batch_size", type=int, default=4)
+    parser.add_argument("--lr", type=float, default=1e-4)
     parser.add_argument("--patience", type=int, default=1000)
-    parser.add_argument("--patch_size", type=int, default=3)
+    parser.add_argument("--patch_size", type=int, default=1)
     args = parser.parse_args()
     train(args)
 
