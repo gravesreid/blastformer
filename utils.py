@@ -9,6 +9,23 @@ import os
 import logging
 import wandb
 
+def r2_score_total(y_true_list, y_pred_list):
+    y_true = np.concatenate(y_true_list, axis=0)
+    y_pred = np.concatenate(y_pred_list, axis=0)
+
+    y_true_mean = np.mean(y_true)
+    y_true_std = np.std(y_true)
+    y_pred_mean = np.mean(y_pred)
+    y_pred_std = np.std(y_pred)
+
+    y_true = (y_true - y_true_mean) / y_true_std
+    y_pred = (y_pred - y_pred_mean) / y_pred_std
+
+    ss_res = np.sum((y_true - y_pred) ** 2)
+    ss_tot = np.sum((y_true - np.mean(y_true)) ** 2)
+    r2 = 1 - ss_res / ss_tot
+    return r2
+
 def MAPE_error(y_true, y_pred):
     """
     Calculate Mean Absolute Percentage Error (MAPE).
@@ -155,22 +172,43 @@ def visualize_max_pressure(true_max_pressure, predicted_max_pressure, run_name, 
         logging.info(f"Saved validation visualization to {vis_path}")
         plt.close(fig)
 
-def visualize_testing(true_pressure, predicted_pressure_1, model_1_name):
-    """3x3 grid with first column showing truth, second column showing prediction, and third column showing percentage error, with each row representing a different model."""
+def visualize_testing(true_pressure_1, predicted_pressure_1, model_1_name, unscaled=True, vmin=None, vmax=None):
+    """Show three separate figures: True Pressure, Predicted Pressure, and Error."""
 
-    error_1 = np.abs(true_pressure - predicted_pressure_1)/np.abs(true_pressure)
+    error_1 = np.abs(true_pressure_1 - predicted_pressure_1)
     error_1 = np.nan_to_num(error_1, nan=0.0, posinf=0.0, neginf=0.0)
-    fig, axes = plt.subplots(1, 3, figsize=(12, 12))
-    im_true = axes[0].imshow(true_pressure, cmap="jet")
-    axes[0].set_title("True Pressure")
-    fig.colorbar(im_true, ax=axes[0], fraction=0.046, pad=0.04)
-    im_pred_1 = axes[1].imshow(predicted_pressure_1, cmap="jet")
-    axes[1].set_title(f"{model_1_name} Predicted Pressure")
-    fig.colorbar(im_pred_1, ax=axes[1], fraction=0.046, pad=0.04)
-    im_error_1 = axes[2].imshow(error_1, cmap="jet")
-    axes[2].set_title(f"{model_1_name} Error")
-    fig.colorbar(im_error_1, ax=axes[2], fraction=0.046, pad=0.04)
-    plt.tight_layout()
+    label = "Pressure (Pa)" if unscaled else None
+    label2 = "Absolute Error (Pa)" if unscaled else None
+
+    if vmin is not None and vmax is not None:
+        vmin = vmin
+        vmax = vmax
+
+    # True Pressure
+    fig_true, ax_true = plt.subplots(figsize=(6, 6))
+    im_true = ax_true.imshow(true_pressure_1, cmap="jet")
+    ax_true.set_title("True Pressure", fontsize=20)
+    ax_true.tick_params(axis='both', which='major', labelsize=16)
+    cbar_true = fig_true.colorbar(im_true, ax=ax_true, fraction=0.046, pad=0.04, label=label)
+    cbar_true.ax.tick_params(labelsize=16)
+    plt.show()
+
+    # Predicted Pressure
+    fig_pred, ax_pred = plt.subplots(figsize=(6, 6))
+    im_pred = ax_pred.imshow(predicted_pressure_1, cmap="jet")
+    ax_pred.set_title("Predicted Pressure", fontsize=20)
+    ax_pred.tick_params(axis='both', which='major', labelsize=16)
+    cbar_pred = fig_pred.colorbar(im_pred, ax=ax_pred, fraction=0.046, pad=0.04, label=label)
+    cbar_pred.ax.tick_params(labelsize=16)
+    plt.show()
+
+    # Error
+    fig_error, ax_error = plt.subplots(figsize=(6, 6))
+    im_error = ax_error.imshow(error_1, cmap="binary" , vmin=vmin, vmax=vmax)
+    ax_error.set_title("Error", fontsize=20)
+    ax_error.tick_params(axis='both', which='major', labelsize=16)
+    cbar_error = fig_error.colorbar(im_error, ax=ax_error, fraction=0.046, pad=0.04, label=label2)
+    cbar_error.ax.tick_params(labelsize=16)
     plt.show()
 
 def plot_reconstruction_all(data_sample, reconstructed_pressures, index=0, save_dir=None, show=False):

@@ -38,7 +38,10 @@ def train(args):
         logging.error("Validation dataloader is empty. Check the dataset path.")
         return
     
-    model = BlastCNN().to(device)
+    model = BlastCNN(base_dim=128).to(device)
+    model_params = sum(p.numel() for p in model.parameters() if p.requires_grad)
+    logging.info(f"Model has {model_params} parameters.")
+    print(f"Model has {model_params} parameters.")
 
     optimizer = optim.AdamW(model.parameters(), lr=args.lr)
     scheduler = CosineAnnealingLR(optimizer, T_max=args.epochs, eta_min=0)

@@ -13,7 +13,7 @@ import matplotlib.animation as animation
 class BlastDataset(Dataset):
     """Dataset for BlastFoam simulations stored in HDF5 format."""
 
-    def __init__(self, root_dir, standardize=False, normalize=True, log_transform=True, split="train", show_stats=False, show_normalized_stats=False):
+    def __init__(self, root_dir, normalize=True, log_transform=True, split="train", show_stats=False, show_normalized_stats=False):
         """
         Args:
             root_dir (str): Root directory containing 'train', 'test', 'val' HDF5 subdirectories.
@@ -21,7 +21,6 @@ class BlastDataset(Dataset):
             standardize (bool): Whether to standardize the pressure data.
         """
         self.root_dir = root_dir
-        self.standardize = standardize
         self.normalize = normalize
         self.split = split
         self.log_transform = log_transform
@@ -38,75 +37,14 @@ class BlastDataset(Dataset):
         # remove outliers
         self.compute_statistics(show_stats=show_stats, show_normalized_stats=show_normalized_stats)
 
-        if standardize:
-            print("Computing standardization parameters")
-            self.max_mean, self.max_std, self.input_tensor_C1_mean, self.input_tensor_C1_std, self.input_tensor_C2_mean, self.input_tensor_C2_std, self.input_tensor_C3_mean, self.input_tensor_C3_std, self.input_tensor_C4_mean, self.input_tensor_C4_std = self._compute_standardization()
-        elif normalize or log_transform:
+        if normalize or log_transform:
             print("Computing normalization parameters")
             self.min_max_pressure, self.max_max_pressure, self.min_input_tensor_C1, self.max_input_tensor_C1, self.min_input_tensor_C2, self.max_input_tensor_C2, self.min_input_tensor_C3, self.max_input_tensor_C3, self.min_input_tensor_C4, self.max_input_tensor_C4 = self.compute_normalize()
             if log_transform:
                 self.min_max_pressure = torch.log(self.min_max_pressure)
                 self.max_max_pressure = torch.log(self.max_max_pressure)
 
-    def _compute_standardization(self):
-        """Compute mean and std of pressure values across dataset."""
-        max_pressure_sum = 0.0
-        max_pressure_sq_sum = 0.0
-        max_pressure_elements = 0
 
-        input_tensor_C1_sum = 0.0
-        input_tensor_C1_sq_sum = 0.0
-        input_tensor_C1_elements = 0
-        input_tensor_C2_sum = 0.0
-        input_tensor_C2_sq_sum = 0.0
-        input_tensor_C2_elements = 0
-        input_tensor_C3_sum = 0.0
-        input_tensor_C3_sq_sum = 0.0
-        input_tensor_C3_elements = 0
-        input_tensor_C4_sum = 0.0
-        input_tensor_C4_sq_sum = 0.0
-        input_tensor_C4_elements = 0
-
-        for sim_path in self.file_list:
-            print(f"Processing {sim_path}")
-            with h5py.File(sim_path, "r") as f:
-                max_pressure = f["max_pressure_grid"][:]
-                max_pressure_sum += max_pressure.sum()
-                max_pressure_sq_sum += (max_pressure ** 2).sum()
-                max_pressure_elements += max_pressure.size
-                input_tensors = f["input_tensor"][:]
-                input_tensor_C1 = input_tensors[:, :,  0]
-                input_tensor_C2 = input_tensors[:, :,  1]
-                input_tensor_C3 = input_tensors[:, :,  2]
-                input_tensor_C4 = input_tensors[:, :,  3]
-                input_tensor_C1_sum += input_tensor_C1.sum()
-                input_tensor_C1_sq_sum += (input_tensor_C1 ** 2).sum()
-                input_tensor_C1_elements += input_tensor_C1.size
-                input_tensor_C2_sum += input_tensor_C2.sum()
-                input_tensor_C2_sq_sum += (input_tensor_C2 ** 2).sum()
-                input_tensor_C2_elements += input_tensor_C2.size
-                input_tensor_C3_sum += input_tensor_C3.sum()
-                input_tensor_C3_sq_sum += (input_tensor_C3 ** 2).sum()
-                input_tensor_C3_elements += input_tensor_C3.size
-                input_tensor_C4_sum += input_tensor_C4.sum()
-                input_tensor_C4_sq_sum += (input_tensor_C4 ** 2).sum()
-                input_tensor_C4_elements += input_tensor_C4.size
-
-        max_pressure_mean = max_pressure_sum / max_pressure_elements
-        max_pressure_std = ((max_pressure_sq_sum / max_pressure_elements) - (max_pressure_mean ** 2)) ** 0.5
-        input_tensor_C1_mean = input_tensor_C1_sum / input_tensor_C1_elements
-        input_tensor_C1_std = ((input_tensor_C1_sq_sum / input_tensor_C1_elements) - (input_tensor_C1_mean ** 2)) ** 0.5
-        input_tensor_C2_mean = input_tensor_C2_sum / input_tensor_C2_elements
-        input_tensor_C2_std = ((input_tensor_C2_sq_sum / input_tensor_C2_elements) - (input_tensor_C2_mean ** 2)) ** 0.5
-        input_tensor_C3_mean = input_tensor_C3_sum / input_tensor_C3_elements
-        input_tensor_C3_std = ((input_tensor_C3_sq_sum / input_tensor_C3_elements) - (input_tensor_C3_mean ** 2)) ** 0.5
-        input_tensor_C4_mean = input_tensor_C4_sum / input_tensor_C4_elements
-        input_tensor_C4_std = ((input_tensor_C4_sq_sum / input_tensor_C4_elements) - (input_tensor_C4_mean ** 2)) ** 0.5
-        with open(self.standardization_file, 'w') as f:
-            json.dump({"max_mean": float(max_pressure_mean), "max_std": float(max_pressure_std), "input_tensor_C1_mean": float(input_tensor_C1_mean), "input_tensor_C1_std": float(input_tensor_C1_std), "input_tensor_C2_mean": float(input_tensor_C2_mean), "input_tensor_C2_std": float(input_tensor_C2_std), "input_tensor_C3_mean": float(input_tensor_C3_mean), "input_tensor_C3_std": float(input_tensor_C3_std), "input_tensor_C4_mean": float(input_tensor_C4_mean), "input_tensor_C4_std": float(input_tensor_C4_std)}, f)
-        print(f"Saved standardization parameters to {self.standardization_file}")
-        return max_pressure_mean, max_pressure_std, input_tensor_C1_mean, input_tensor_C1_std, input_tensor_C2_mean, input_tensor_C2_std, input_tensor_C3_mean, input_tensor_C3_std, input_tensor_C4_mean, input_tensor_C4_std
-    
     def compute_normalize(self):
         """Normalize the data if required."""
         min_max_pressure = float('inf')
@@ -247,7 +185,6 @@ class BlastDataset(Dataset):
         window_size = 30
         valid_starts = 30 - window_size + 1
         sim_idx = idx // valid_starts
-        timestep_idx = idx % valid_starts
         sample_path = self.file_list[sim_idx]
         with h5py.File(sample_path, "r") as f:
             # the filename has format simulationNumber_timestepNumber.hdf5
@@ -267,20 +204,10 @@ class BlastDataset(Dataset):
             input_tensor = np.array(f["input_tensor"], dtype=np.float32)
             input_tensor = torch.tensor(input_tensor, dtype=torch.float32)
 
-            if self.standardize:
-                max_pressure = (max_pressure - self.max_mean) / self.max_std
-                input_tensor[:,:,0] = (input_tensor[:,:,0] - self.input_tensor_C1_mean) / self.input_tensor_C1_std
-                input_tensor[:,:,1] = (input_tensor[:,:,1] - self.input_tensor_C2_mean) / self.input_tensor_C2_std
-                input_tensor[:,:,2] = (input_tensor[:,:,2] - self.input_tensor_C3_mean) / self.input_tensor_C3_std
-                input_tensor[:,:,3] = (input_tensor[:,:,3] - self.input_tensor_C4_mean) / self.input_tensor_C4_std
             if self.log_transform:
                 max_pressure = torch.log(max_pressure)
             if self.normalize:
                 max_pressure = (max_pressure - self.min_max_pressure) / (self.max_max_pressure - self.min_max_pressure)
-                #input_tensor[:,:,0] = (input_tensor[:,:,0] - self.min_input_tensor_C1) / (self.max_input_tensor_C1 - self.min_input_tensor_C1)
-                #input_tensor[:,:,1] = (input_tensor[:,:,1] - self.min_input_tensor_C2) / (self.max_input_tensor_C2 - self.min_input_tensor_C2)
-                #input_tensor[:,:,2] = (input_tensor[:,:,2] - self.min_input_tensor_C3) / (self.max_input_tensor_C3 - self.min_input_tensor_C3)
-                #input_tensor[:,:,3] = (input_tensor[:,:,3] - self.min_input_tensor_C4) / (self.max_input_tensor_C4 - self.min_input_tensor_C4)
 
         return {
             "simulation_number": simulation_number,
@@ -296,7 +223,21 @@ class BlastDataset(Dataset):
 
 
 def main():
-    dataset = BlastDataset("/home/reid/projects/blast_waves/hdf5_dataset_max_pressure_2", standardize=False, normalize=True, show_stats=False, show_normalized_stats=True)
+    dataset_log = BlastDataset("/home/reid/projects/blast_waves/hdf5_dataset_max_pressure", normalize=False, show_stats=False, show_normalized_stats=False, log_transform=True)
+    dataloader_log = DataLoader(
+    dataset_log,
+    batch_size=1,
+    shuffle=False,
+    num_workers=min(12, os.cpu_count() - 2),  # Multi-worker loading
+    )
+    dataset_log_normal = BlastDataset("/home/reid/projects/blast_waves/hdf5_dataset_max_pressure", normalize=True, show_stats=False, show_normalized_stats=False, log_transform=True)
+    dataloader_log_normal = DataLoader(
+    dataset_log_normal,
+    batch_size=1,
+    shuffle=False,
+    num_workers=min(12, os.cpu_count() - 2),  # Multi-worker loading
+    )
+    dataset = BlastDataset("/home/reid/projects/blast_waves/hdf5_dataset_max_pressure", normalize=True, show_stats=False, show_normalized_stats=False, log_transform=False)
     dataloader = DataLoader(
     dataset,
     batch_size=1,
@@ -308,16 +249,124 @@ def main():
     num_processed = 0
     max_pressure_list = []
     input_tensor_list = []
+    charge_mass_list = []
     for batch in dataloader:
-        if num_processed > 1000:
-            break
-        print(f"Processing batch {num_processed}")
+        print(f"Processing batch {num_processed} (dataloader)")
         max_pressure = batch["max_pressure"]
+        print(f"Max pressure shape: {max_pressure.shape}")
+        max_pressure = max_pressure.view(-1)
+        print(f"Max pressure shape: {max_pressure.shape}")
         input_tensor = batch["input_tensor"]
         max_pressure_list.append(max_pressure)
         input_tensor_list.append(input_tensor)
+
+        charge_mass = batch["charge_mass"]
+        charge_mass = charge_mass.item()
+        charge_mass_list.append(charge_mass)
         num_processed += 1
 
+    num_processed_log = 0
+    max_pressure_list_log = []
+    input_tensor_list_log = []
+    charge_mass_list_log = []
+    for batch in dataloader_log:
+        print(f"Processing batch {num_processed_log} (dataloader_log)")
+        max_pressure = batch["max_pressure"]
+        print(f"Max pressure shape: {max_pressure.shape}")
+        max_pressure = max_pressure.view(-1)
+        print(f"Max pressure shape: {max_pressure.shape}")
+        input_tensor = batch["input_tensor"]
+        max_pressure_list_log.append(max_pressure)
+        input_tensor_list_log.append(input_tensor)
+
+        charge_mass = batch["charge_mass"]
+        charge_mass = charge_mass.item()
+        charge_mass_list_log.append(charge_mass)
+        num_processed_log += 1
+
+    num_processed_log_normal = 0
+    max_pressure_list_log_normal = []
+    input_tensor_list_log_normal = []
+    charge_mass_list_log_normal = []
+    for batch in dataloader_log_normal:
+        print(f"Processing batch {num_processed_log_normal} (dataloader_log_normal)")
+        max_pressure = batch["max_pressure"]
+        print(f"Max pressure shape: {max_pressure.shape}")
+        max_pressure = max_pressure.view(-1)
+        print(f"Max pressure shape: {max_pressure.shape}")
+        input_tensor = batch["input_tensor"]
+        max_pressure_list_log_normal.append(max_pressure)
+        input_tensor_list_log_normal.append(input_tensor)
+
+        charge_mass = batch["charge_mass"]
+        charge_mass = charge_mass.item()
+        charge_mass_list_log_normal.append(charge_mass)
+        num_processed_log_normal += 1
+
+    charge_mass_array = np.array(charge_mass_list)
+    plt.hist(charge_mass_array, bins=10, alpha=0.7, range=(np.min(charge_mass_array), np.max(charge_mass_array)))
+    plt.xlabel("Charge Mass")
+    plt.ylabel("Frequency")
+    plt.title("Charge Mass Histogram")
+    plt.show()
+
+    # Combine all pressures for the three datasets
+    all_pressures = torch.cat(max_pressure_list)
+    all_pressures_log = torch.cat(max_pressure_list_log)
+    all_pressures_log_normal = torch.cat(max_pressure_list_log_normal)
+
+    # Convert to numpy arrays for plotting
+    all_pressures_np = all_pressures.numpy()
+    all_pressures_log_np = all_pressures_log.numpy()
+    all_pressures_log_normal_np = all_pressures_log_normal.numpy()
+
+    # Plot histograms
+    # Create histograms using subplots
+    fig, axes = plt.subplots(1, 3, figsize=(18, 6), sharey=True)
+    bins = 10
+
+    axes[0].hist(all_pressures_np, bins=bins, alpha=0.7, range=(np.min(all_pressures_np), np.max(all_pressures_np)), color='blue')
+    axes[0].set_title("Normalized", fontsize=22)
+    axes[0].set_xlabel("Max Pressure", fontsize=20)
+    axes[0].set_ylabel("Frequency", fontsize=20)
+    axes[0].tick_params(axis='x', labelsize=16)
+    axes[0].tick_params(axis='y', labelsize=16)
+    axes[0].yaxis.get_offset_text().set_fontsize(16)
+
+    axes[1].hist(all_pressures_log_np, bins=bins, alpha=0.7, range=(np.min(all_pressures_log_np), np.max(all_pressures_log_np)), color="green")
+    axes[1].set_title("Log", fontsize=22)
+    axes[1].set_xlabel("Max Pressure", fontsize=20)
+    axes[1].tick_params(axis='x', labelsize=16)
+    axes[1].tick_params(axis='y', labelsize=16)
+
+    axes[2].hist(all_pressures_log_normal_np, bins=bins, alpha=0.7, range=(np.min(all_pressures_log_normal_np), np.max(all_pressures_log_normal_np)), color="red")
+    axes[2].set_title("Log Normalized", fontsize=22)
+    axes[2].set_xlabel("Max Pressure", fontsize=20)
+    axes[2].tick_params(axis='x', labelsize=16)
+    axes[2].tick_params(axis='y', labelsize=16)
+
+    plt.suptitle("Max Pressure Histograms", fontsize=24)
+    plt.tight_layout(rect=[0, 0, 1, 0.95])
+    plt.show()
+
+    # Create three separate box and whisker plots using subplots
+    fig, axes = plt.subplots(1, 3, figsize=(18, 6))
+
+    # Combine data into a list for boxplot
+    data = [all_pressures_np, all_pressures_log_np, all_pressures_log_normal_np]
+    labels = ["Normalized", "Log", "Log Normalized"]
+
+    # Create individual boxplots
+    for i, ax in enumerate(axes):
+        ax.boxplot([data[i]], labels=[labels[i]], showmeans=True)
+        ax.tick_params(axis='x', labelsize=20)
+        ax.tick_params(axis='y', labelsize=20)
+        if i == 0:
+            ax.set_ylabel("Max Pressure", fontsize=20)
+
+    plt.suptitle("Max Pressure Box and Whisker Plots", fontsize=24)
+    plt.tight_layout(rect=[0, 0, 1, 0.95])
+    plt.show()
 
     fig, axes = plt.subplots(1, 5, figsize=(20, 4))
 
@@ -339,6 +388,13 @@ def main():
         plt.pause(0.1)
 
     plt.show()
+
+
+
+
+    
+
+
 
     
 
